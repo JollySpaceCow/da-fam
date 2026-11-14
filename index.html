@@ -1,0 +1,3615 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>Da Fam' — your family tree</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#101715;
+    --bg-soft:#161F1C;
+    --panel:#1C2622;
+    --panel-border:#2C3A34;
+    --parchment:#EFE8D8;
+    --ink:#EDE7D9;
+    --muted:#93A69B;
+    --gold:#D4A24C;
+    --gold-soft:rgba(212,162,76,.18);
+    --rose:#C77B7B;
+    --sage:#6C8B76;
+    --line:#3E5148;
+    --danger:#C4694F;
+    --serif:'Fraunces', serif;
+    --sans:'Inter', sans-serif;
+    --radius:18px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  img{-webkit-user-drag:none; -khtml-user-drag:none; -moz-user-drag:none; -o-user-drag:none; user-drag:none;}
+  html,body{height:100%;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink); font-family:var(--sans);
+    overflow:hidden; height:100vh; width:100vw; position:fixed; inset:0;
+    user-select:none; -webkit-user-select:none; -moz-user-select:none;
+  }
+  input, textarea{ user-select:text; -webkit-user-select:text; -moz-user-select:text; }
+  #app{position:relative; height:100%; width:100%; display:flex; flex-direction:column;}
+
+  /* ---------- Top bar ---------- */
+  header{
+    display:flex; align-items:center; gap:12px; padding:14px 18px;
+    background:linear-gradient(180deg, rgba(16,23,21,.98), rgba(16,23,21,.85));
+    border-bottom:1px solid var(--panel-border); z-index:40; position:relative;
+    flex-wrap:wrap;
+  }
+  .brand{display:flex; align-items:baseline; gap:8px; margin-right:auto;}
+  .brand h1{font-family:var(--serif); font-weight:600; font-size:22px; margin:0; letter-spacing:.2px; color:var(--parchment);}
+  .brand span{font-size:12px; color:var(--muted);}
+  .searchbox{
+    background:var(--bg-soft); border:1px solid var(--panel-border); border-radius:999px;
+    padding:7px 14px; display:flex; align-items:center; gap:8px; min-width:140px;
+  }
+  .searchbox input{
+    background:transparent; border:none; outline:none; color:var(--ink); font-family:var(--sans);
+    font-size:13px; width:120px;
+  }
+  .searchbox input::placeholder{color:var(--muted);}
+  .btn{
+    font-family:var(--sans); font-size:13px; font-weight:600; border-radius:999px; border:1px solid var(--panel-border);
+    background:var(--bg-soft); color:var(--ink); padding:8px 15px; cursor:pointer; display:flex; align-items:center; gap:6px;
+    transition:transform .12s ease, background .15s ease, border-color .15s ease;
+  }
+  .btn:hover{background:#212D28; border-color:var(--sage);}
+  .btn:active{transform:scale(.96);}
+  .btn.primary{background:var(--gold); color:#1B1405; border-color:var(--gold);}
+  .btn.primary:hover{background:#e0af5c;}
+  .btn.ghost{background:transparent;}
+  .btn svg{width:14px; height:14px; flex-shrink:0;}
+
+  /* ---------- Canvas ---------- */
+  #viewport{position:relative; flex:1; overflow:hidden; touch-action:none; cursor:grab;}
+  #viewport.dragging{cursor:grabbing;}
+  #canvas-inner{position:absolute; left:50%; top:50%; will-change:transform;}
+  svg#lines{position:absolute; left:-6000px; top:-6000px; width:12000px; height:12000px; overflow:visible; pointer-events:none;}
+  svg#lines path{fill:none; stroke:var(--line); stroke-width:2;}
+  svg#lines path.second-parent-line{stroke:var(--line); stroke-width:2;}
+  marker#arrowHead path{fill:var(--gold);}
+  body.show-handles svg#lines path.family-line, body.connect-active svg#lines path.family-line{
+    marker-end:url(#arrowHead);
+  }
+
+  .bubble{
+    position:absolute; transform:translate(-50%,-50%);
+    display:flex; flex-direction:column; align-items:center; gap:6px;
+    cursor:grab; user-select:none;
+  }
+  .bubble.bubble-dragging{cursor:grabbing; z-index:10;}
+  .bubble.bubble-dragging .photo{animation:none; box-shadow:0 10px 30px rgba(0,0,0,.5);}
+  .bubble .photo{
+    width:74px; height:74px; border-radius:50%; background:var(--panel); position:relative;
+    border:2.5px solid var(--sage); overflow:visible; display:flex; align-items:center; justify-content:center;
+    box-shadow:0 6px 18px rgba(0,0,0,.35); transition:transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+    animation:bob 6s ease-in-out infinite;
+  }
+  .bubble .photo > img, .bubble .photo > .initials{border-radius:50%; overflow:hidden;}
+  .bubble .photo > img{width:100%; height:100%; object-fit:cover; display:block;}
+  .bubble.me .photo{width:96px; height:96px; border-color:var(--gold); border-width:3px;}
+  .bubble .photo img{width:100%; height:100%; object-fit:cover;}
+  .bubble .photo .initials{font-family:var(--serif); font-size:24px; color:var(--muted); font-weight:600;}
+  .bubble.favourite .photo{border-color:var(--gold); box-shadow:0 0 0 3px var(--gold-soft), 0 6px 18px rgba(0,0,0,.35);}
+  .bubble.deceased .photo{filter:grayscale(.55); opacity:.85;}
+  .bubble:hover .photo{transform:scale(1.07); box-shadow:0 10px 26px rgba(0,0,0,.45);}
+  .bubble .name{font-family:var(--serif); font-size:13.5px; font-weight:600; color:var(--parchment); text-align:center; max-width:110px; line-height:1.2; text-shadow:0 2px 6px rgba(0,0,0,.6);}
+  .bubble.me .name{font-size:15px; color:var(--gold);}
+  .bubble .meta{font-size:10.5px; color:var(--muted); text-align:center;}
+  .bubble.dim{opacity:.18;}
+  .bubble.star::after{
+    content:"★"; position:absolute; top:-2px; right:2px; color:var(--gold); font-size:13px;
+    text-shadow:0 1px 3px rgba(0,0,0,.6);
+  }
+  .bubble .handle{
+    position:absolute; right:-3px; bottom:-3px; width:24px; height:24px; border-radius:50%;
+    background:var(--gold); color:#1B1405; display:flex; align-items:center; justify-content:center;
+    font-size:15px; font-weight:700; line-height:1; border:2px solid var(--bg-soft); cursor:crosshair;
+    opacity:0; pointer-events:none; transform-origin:center; touch-action:none; z-index:5;
+  }
+  body.show-handles .bubble .handle{
+    opacity: calc(0.22 + var(--proximity, 0.35) * 0.78);
+    transform: scale(calc(0.55 + var(--proximity, 0.35) * 1.05));
+    pointer-events:auto;
+    transition: opacity .07s linear, transform .07s linear;
+  }
+  .bubble.dragging-handle .handle{opacity:1 !important; pointer-events:auto !important; transform:scale(1.15) !important;}
+  .bubble.me .handle{width:27px; height:27px; font-size:16px;}
+  .bubble.drop-target .photo{outline:3px solid var(--gold); outline-offset:4px;}
+  .bubble.drop-target-link .photo{outline:3px dashed var(--sage); outline-offset:4px;}
+
+  #modeBar{
+    display:none; position:absolute; left:50%; bottom:20px; transform:translateX(-50%);
+    padding:9px 18px; border-radius:999px; font-size:13px; font-weight:600; white-space:nowrap;
+    z-index:35; align-items:center; gap:8px; box-shadow:0 6px 18px rgba(0,0,0,.4);
+    border:1px solid var(--panel-border);
+  }
+  #modeBar.mode-idle{background:var(--panel); color:var(--ink);}
+  #modeBar.mode-reconnect{background:var(--gold); color:#1B1405; border-color:var(--gold);}
+  #modeBar.mode-link{background:var(--sage); color:#0E1613; border-color:var(--sage);}
+  path.rope-twist{fill:none; stroke:#7C5A34; stroke-width:6; stroke-dasharray:2 8; stroke-linecap:round; opacity:.55;}
+  path.rope-base{fill:none; stroke:#C89A62; stroke-width:6; stroke-linecap:round; stroke-linejoin:round; filter:drop-shadow(0 3px 5px rgba(0,0,0,.4));}
+  circle.rope-knot{fill:#A97C43; stroke:#7C5A34; stroke-width:1.5;}
+  circle.union-dot{fill:var(--gold); stroke:var(--bg-soft); stroke-width:1.5;}
+  @keyframes bob{
+    0%,100%{transform:translateY(0);}
+    50%{transform:translateY(-5px);}
+  }
+  @keyframes popIn{
+    from{opacity:0; transform:translate(-50%,-50%) scale(.6);}
+    to{opacity:1; transform:translate(-50%,-50%) scale(1);}
+  }
+  .bubble.entering{animation:popIn .35s cubic-bezier(.2,1.4,.4,1) forwards;}
+
+  .empty-hint{
+    position:absolute; left:50%; top:calc(50% + 100px); transform:translate(-50%,0);
+    color:var(--muted); font-size:13px; text-align:center; width:220px; line-height:1.5;
+    pointer-events:none;
+  }
+
+  /* ---------- Zoom controls ---------- */
+  .zoom-controls{
+    position:absolute; right:16px; bottom:20px; display:flex; flex-direction:column; gap:6px; z-index:30;
+  }
+  .zoom-controls button{
+    width:38px; height:38px; border-radius:12px; border:1px solid var(--panel-border); background:var(--panel);
+    color:var(--ink); font-size:18px; cursor:pointer; display:flex; align-items:center; justify-content:center;
+  }
+  .zoom-controls button:active{transform:scale(.94);}
+
+  /* ---------- Side panels ---------- */
+  .panel{
+    position:fixed; top:0; bottom:0; width:min(380px, 92vw); background:var(--panel);
+    border-left:1px solid var(--panel-border); z-index:60; transition:transform .28s cubic-bezier(.2,.9,.3,1);
+    overflow-y:auto; padding:20px;
+  }
+  .panel.right{right:0; transform:translateX(100%);}
+  .panel.right.open{transform:translateX(0);}
+  .panel.left{left:0; border-left:none; border-right:1px solid var(--panel-border); transform:translateX(-100%);}
+  .panel.left.open{transform:translateX(0);}
+  .panel h2{font-family:var(--serif); font-size:20px; margin:0 0 4px;}
+  .panel-close{position:absolute; top:16px; right:16px; background:none; border:none; color:var(--muted); font-size:20px; cursor:pointer;}
+  .overlay{position:fixed; inset:0; background:rgba(8,12,10,.55); z-index:50; opacity:0; pointer-events:none; transition:opacity .2s ease;}
+  .overlay.open{opacity:1; pointer-events:auto;}
+
+  /* Detail panel */
+  .detail-photo{width:100%; aspect-ratio:1; border-radius:16px; overflow:hidden; background:var(--bg-soft); margin:18px 0 14px; display:flex; align-items:center; justify-content:center; border:1px solid var(--panel-border);}
+  .detail-photo img{width:100%; height:100%; object-fit:cover;}
+  .detail-photo .initials{font-family:var(--serif); font-size:52px; color:var(--muted);}
+  .detail-tag{display:inline-block; font-size:12px; color:var(--sage); background:rgba(108,139,118,.15); padding:3px 10px; border-radius:999px; margin-bottom:6px;}
+  .detail-age{font-family:var(--serif); font-size:15px; color:var(--gold); margin:8px 0 2px;}
+  .detail-dates{font-size:12.5px; color:var(--muted); margin-bottom:14px;}
+  .detail-desc{font-size:14px; line-height:1.6; color:var(--ink); white-space:pre-wrap; margin-bottom:20px;}
+  .detail-actions{display:flex; gap:8px; flex-wrap:wrap;}
+
+  /* Form */
+  .field{margin-bottom:14px;}
+  .field label{display:block; font-size:12px; color:var(--muted); margin-bottom:6px; font-weight:600;}
+  .field input[type=text], .field input[type=date], .field select, .field textarea{
+    width:100%; background:var(--bg-soft); border:1px solid var(--panel-border); border-radius:10px;
+    color:var(--ink); padding:9px 11px; font-family:var(--sans); font-size:14px; outline:none;
+  }
+  .field input[type=date].date-empty{
+    border-style:dashed; color:var(--muted); opacity:.7;
+  }
+  .date-hint{font-weight:400; color:var(--gold); font-size:10.5px; font-style:italic; text-transform:none;}
+  .partial-date{display:flex; gap:6px;}
+  .partial-date input, .partial-date select{
+    background:var(--bg-soft); border:1px solid var(--panel-border); border-radius:10px;
+    color:var(--ink); padding:9px 8px; font-family:var(--sans); font-size:13px; outline:none; min-width:0;
+  }
+  .partial-date input[id$="Year"]{flex:1.3;}
+  .partial-date select{flex:1.6;}
+  .partial-date input[id$="Day"]{flex:0.9;}
+  .partial-date input:focus, .partial-date select:focus{border-color:var(--sage);}
+  .partial-date input:disabled{opacity:.4; cursor:not-allowed;}
+  .partial-date.date-empty input, .partial-date.date-empty select{border-style:dashed; opacity:.65;}
+  .field textarea{resize:vertical; min-height:70px;}
+  .field input:focus, .field select:focus, .field textarea:focus{border-color:var(--sage);}
+  .checkrow{display:flex; align-items:center; gap:8px; margin-bottom:14px;}
+  .checkrow input{width:16px; height:16px;}
+  .photo-upload{display:flex; align-items:center; gap:12px; margin-bottom:14px;}
+  .photo-preview{width:56px; height:56px; border-radius:50%; background:var(--bg-soft); overflow:hidden; border:1px solid var(--panel-border); flex-shrink:0; display:flex; align-items:center; justify-content:center;}
+  .photo-preview img{width:100%; height:100%; object-fit:cover;}
+  .row2{display:flex; gap:10px;}
+  .row2 > div{flex:1;}
+  .link-picker-row{display:flex; gap:8px;}
+  .link-picker-row select{flex:1;}
+  .link-picker-row .btn{white-space:nowrap; padding:9px 13px;}
+  #formLinkRelation{
+    width:100%; background:var(--bg-soft); border:1px solid var(--panel-border); border-radius:10px;
+    color:var(--ink); padding:8px 11px; font-family:var(--sans); font-size:13px; outline:none;
+  }
+  #formLinkRelation:focus{border-color:var(--sage);}
+  .chip .rel{color:var(--muted); font-style:italic;}
+  .chip.chip-incoming{background:transparent; border-style:dashed; color:var(--muted);}
+  .chips{display:flex; flex-wrap:wrap; gap:6px; margin-top:10px;}
+  .chip{
+    display:inline-flex; align-items:center; gap:6px; background:var(--bg-soft); border:1px solid var(--panel-border);
+    border-radius:999px; padding:5px 6px 5px 12px; font-size:12.5px; color:var(--ink);
+  }
+  .chip .chip-x{
+    background:none; border:none; color:var(--muted); font-size:15px; line-height:1; cursor:pointer; padding:2px 6px;
+    border-radius:50%;
+  }
+  .chip .chip-x:hover{color:var(--danger); background:rgba(196,105,79,.15);}
+
+  .more-section{
+    background:var(--bg-soft); border:1px solid var(--panel-border); border-radius:12px;
+    margin-bottom:14px; overflow:hidden;
+  }
+  .more-section summary{
+    list-style:none; cursor:pointer; padding:11px 14px; font-size:13px; font-weight:600; color:var(--ink);
+    display:flex; align-items:baseline; gap:8px; user-select:none;
+  }
+  .more-section summary::-webkit-details-marker{display:none;}
+  .more-section summary::before{
+    content:"›"; display:inline-block; font-size:15px; color:var(--gold); font-weight:700;
+    transition:transform .15s ease; width:10px;
+  }
+  .more-section[open] summary::before{transform:rotate(90deg);}
+  .more-section summary .hint{font-weight:400; color:var(--muted); font-size:11.5px;}
+  .more-section .more-body{padding:2px 14px 14px;}
+  .more-section .more-body .field:last-child, .more-section .more-body .row2:last-child{margin-bottom:0;}
+
+  /* Birthday list */
+  .bday-item{display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--panel-border);}
+  .bday-item .photo{width:38px; height:38px; border-radius:50%; overflow:hidden; background:var(--bg-soft); flex-shrink:0; display:flex; align-items:center; justify-content:center; border:1px solid var(--panel-border);}
+  .bday-item .photo img{width:100%; height:100%; object-fit:cover;}
+  .union-dot.sibling-dot{opacity:.5;}
+  .bubble.selected .photo{border-color:#7fb5ff; box-shadow:0 0 0 5px rgba(127,181,255,.32), 0 6px 18px rgba(0,0,0,.35);}
+  .marquee{position:absolute; border:1px solid #7fb5ff; background:rgba(127,181,255,.14); border-radius:3px; pointer-events:none; z-index:30;}
+  #selBar{position:fixed; left:50%; bottom:26px; transform:translate(-50%, 16px); display:flex; align-items:center; gap:8px; padding:8px 12px; background:var(--panel); border:1px solid var(--panel-border); border-radius:14px; box-shadow:0 10px 30px rgba(0,0,0,.45); z-index:60; opacity:0; pointer-events:none; transition:opacity .15s ease, transform .15s ease;}
+  #selBar.show{opacity:1; pointer-events:auto; transform:translate(-50%, 0);}
+  #selBar .count{font-size:13px; color:var(--muted); margin-right:4px; white-space:nowrap;}
+  circle.union-dot.unknown-dot{fill:var(--bg-soft); stroke:var(--gold); stroke-width:1.5; opacity:.7;}
+  .bday-item{cursor:pointer; border-radius:8px; transition:background .15s ease;}
+  .bday-item:hover{background:rgba(255,255,255,.05);}
+  .bday-item .go{font-size:11px; color:var(--muted); margin-left:6px;}
+  .bubble.locate-pulse .photo{border-color:var(--gold); animation:locatePulse 1s ease-out 3;}
+  @keyframes locatePulse{0%{box-shadow:0 0 0 0 rgba(214,170,80,.85);} 100%{box-shadow:0 0 0 38px rgba(214,170,80,0);}}
+  .bday-item .info{flex:1;}
+  .bday-item .info .n{font-size:14px; font-weight:600;}
+  .bday-item .info .d{font-size:11.5px; color:var(--muted);}
+  .bday-item .when{font-size:12px; color:var(--gold); text-align:right; font-weight:600;}
+
+  .subtle{font-size:12px; color:var(--muted); line-height:1.6;}
+  hr.soft{border:none; border-top:1px solid var(--panel-border); margin:18px 0;}
+
+  #toast{
+    position:fixed; bottom:22px; left:50%; transform:translate(-50%, 20px); background:var(--panel);
+    border:1px solid var(--panel-border); color:var(--ink); padding:10px 18px; border-radius:999px;
+    font-size:13px; opacity:0; pointer-events:none; transition:all .25s ease; z-index:100;
+  }
+  #toast.show{opacity:1; transform:translate(-50%,0);}
+
+  /* ---------- Crop modal ---------- */
+  .crop-overlay{
+    position:fixed; inset:0; background:rgba(8,12,10,.75); z-index:80; display:none;
+    align-items:center; justify-content:center; padding:20px;
+  }
+  .crop-overlay.open{display:flex;}
+  .crop-box{
+    background:var(--panel); border:1px solid var(--panel-border); border-radius:20px; padding:20px;
+    width:min(340px, 100%); text-align:center;
+    user-select:none; -webkit-user-select:none; -moz-user-select:none;
+  }
+  .crop-box h3{font-family:var(--serif); font-size:17px; margin:0 0 4px;}
+  .crop-box p.subtle{margin:0 0 16px;}
+  .crop-frame{
+    width:260px; height:260px; margin:0 auto; position:relative; overflow:hidden; border-radius:50%;
+    background:var(--bg-soft); border:2px solid var(--panel-border); cursor:grab; touch-action:none;
+  }
+  .crop-frame.dragging{cursor:grabbing;}
+  .crop-frame img{position:absolute; left:0; top:0; transform-origin:0 0; user-select:none; -webkit-user-drag:none; pointer-events:none;}
+  .crop-zoom{display:flex; align-items:center; gap:10px; margin-top:16px;}
+  .crop-zoom span{font-size:16px; color:var(--muted);}
+  .crop-zoom input[type=range]{flex:1; accent-color:var(--gold);}
+  .crop-actions{display:flex; gap:10px; margin-top:18px;}
+  .crop-actions .btn{flex:1; justify-content:center;}
+
+  /* ---------- Custom confirm dialog (works even where native confirm() is sandboxed) ---------- */
+  .confirm-overlay{
+    position:fixed; inset:0; background:rgba(8,12,10,.75); z-index:90; display:none;
+    align-items:center; justify-content:center; padding:20px;
+  }
+  .confirm-overlay.open{display:flex;}
+  .confirm-box{
+    background:var(--panel); border:1px solid var(--panel-border); border-radius:20px; padding:22px;
+    width:min(340px, 100%);
+  }
+  .confirm-box p{font-size:14.5px; line-height:1.6; margin:0 0 18px; color:var(--ink);}
+  .confirm-box input[type=text]{
+    width:100%; background:var(--bg-soft); border:1px solid var(--panel-border); border-radius:10px;
+    color:var(--ink); padding:9px 11px; font-family:var(--sans); font-size:14px; outline:none;
+  }
+  .confirm-box input[type=text]:focus{border-color:var(--sage);}
+  .quick-relation-row{display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap;}
+  .quick-relation-row .btn{flex:1; justify-content:center; white-space:nowrap; padding:9px 8px; font-size:12.5px;}
+  .confirm-actions{display:flex; gap:10px;}
+  .confirm-actions .btn{flex:1; justify-content:center;}
+  .confirm-actions #confirmOk{background:var(--danger); border-color:var(--danger); color:#fff;}
+
+  @media (max-width:640px){
+    .brand span{display:none;}
+    header{padding:10px 12px;}
+    .searchbox input{width:80px;}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="brand"><h1>Da Fam'</h1><span>your family</span></div>
+    <div class="searchbox">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#93A69B" stroke-width="2" width="14" height="14"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <input id="searchInput" type="text" placeholder="Find someone…">
+    </div>
+    <button class="btn ghost" id="btnBirthdays">🎂 Birthdays</button>
+    <button class="btn ghost" id="btnAutoLayout">🧹 Auto layout</button>
+    <button class="btn ghost" id="btnExport">⬇ Export</button>
+    <button class="btn primary" id="btnAdd">+ Add person</button>
+  </header>
+
+  <div id="viewport">
+    <div id="canvas-inner">
+      <svg id="lines">
+        <defs>
+          <marker id="arrowHead" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+            <path d="M0,0 L10,5 L0,10 z"></path>
+          </marker>
+        </defs>
+        <g id="linesGroup" transform="translate(6000,6000)"></g>
+      </svg>
+      <div id="bubbleLayer"></div>
+    </div>
+    <div class="empty-hint" id="emptyHint">This is you. Parents will appear above you, children below, once you start adding them. Tap <strong>+ Add person</strong> to add your first relative — you can also just drag any bubble to reposition it by hand, or hold <strong>Shift</strong> to reveal a small <strong>+</strong> on each bubble for branching new people off them or reconnecting things.</div>
+    <div class="zoom-controls">
+      <button id="undoBtn" title="Undo (Ctrl/Cmd+Z)">↺</button>
+      <button id="zoomIn">+</button>
+      <button id="zoomReset">⟳</button>
+      <button id="zoomOut">−</button>
+    </div>
+    <div id="modeBar"></div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay"></div>
+
+<!-- Detail panel -->
+<div class="panel right" id="detailPanel">
+  <button class="panel-close" id="closeDetail">✕</button>
+  <span class="detail-tag" id="dTag">Relation</span>
+  <h2 id="dName">Name</h2>
+  <div class="detail-photo" id="dPhoto"></div>
+  <div class="detail-age" id="dAge"></div>
+  <div class="detail-dates" id="dDates"></div>
+  <div class="detail-dates" id="dLinks" style="display:none;"></div>
+  <div class="detail-desc" id="dDesc"></div>
+  <div class="detail-actions">
+    <button class="btn" id="dFav">☆ Favourite</button>
+    <button class="btn" id="dEdit">Edit</button>
+    <button class="btn" id="dResetPos" style="display:none;">↺ Reset position</button>
+    <button class="btn" id="dDelete" style="color:var(--danger); border-color:var(--danger);">Delete</button>
+  </div>
+</div>
+
+<!-- Add/Edit panel -->
+<div class="panel right" id="formPanel">
+  <button class="panel-close" id="closeForm">✕</button>
+  <h2 id="formTitle">Add a family member</h2>
+  <div style="margin-top:18px;">
+    <div class="photo-upload">
+      <div class="photo-preview" id="formPhotoPreview"><span style="color:var(--muted); font-size:11px;">No photo</span></div>
+      <div>
+        <input type="file" id="formPhotoInput" accept="image/*" style="display:none;">
+        <button class="btn" id="formPhotoBtn" type="button">Choose photo</button>
+      </div>
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label>Name</label>
+        <input type="text" id="formName" placeholder="e.g. Nanna Pat">
+      </div>
+      <div class="field">
+        <label>Nickname</label>
+        <input type="text" id="formNickname" placeholder="e.g. Pattycakes">
+      </div>
+    </div>
+    <div class="field" id="fieldConnected">
+      <label>Connected to</label>
+      <select id="formConnected"></select>
+    </div>
+    <div class="field" id="fieldRelation">
+      <label>Relation (to the person above)</label>
+      <input type="text" id="formRelation" placeholder="e.g. Mother, Cousin, Grandad" list="relationSuggestions">
+      <datalist id="relationSuggestions"></datalist>
+    </div>
+    <details class="more-section" id="fieldLinks">
+      <summary>Also connected to <span class="hint">other parent, siblings, whoever else</span></summary>
+      <div class="more-body">
+        <div class="link-picker-row">
+          <select id="formLinkPicker"></select>
+          <button class="btn" type="button" id="formLinkAdd">+ Add</button>
+        </div>
+        <label for="formLinkRelation" style="display:block; font-size:11px; color:var(--muted); margin-top:8px; margin-bottom:5px; font-weight:600;">Relation (of the picked person, to <span id="formLinkRelationName">this person</span>)</label>
+        <input type="text" id="formLinkRelation" placeholder="e.g. Father, Sister — optional" list="relationSuggestions">
+        <div class="chips" id="formLinksChips"></div>
+      </div>
+    </details>
+    <div class="row2">
+      <div class="field">
+        <label>Born <span class="date-hint" id="formBirthHint"></span></label>
+        <div class="partial-date" id="formBirthGroup">
+          <input type="number" id="formBirthDay" placeholder="Day" min="1" max="31" inputmode="numeric" disabled>
+          <select id="formBirthMonth"><option value="">Month</option></select>
+          <input type="number" id="formBirthYear" placeholder="Year" min="1" max="2100" inputmode="numeric">
+        </div>
+      </div>
+      <div class="field">
+        <label>Died <span class="date-hint" id="formDeathHint"></span></label>
+        <div class="partial-date" id="formDeathGroup">
+          <input type="number" id="formDeathDay" placeholder="Day" min="1" max="31" inputmode="numeric" disabled>
+          <select id="formDeathMonth"><option value="">Month</option></select>
+          <input type="number" id="formDeathYear" placeholder="Year" min="1" max="2100" inputmode="numeric">
+        </div>
+      </div>
+    </div>
+    <details class="more-section" id="fieldMoreDates">
+      <summary>More dates & places <span class="hint">birthplace, marriage, etc.</span></summary>
+      <div class="more-body">
+        <div class="row2">
+          <div class="field">
+            <label>Birthplace</label>
+            <input type="text" id="formBirthplace" placeholder="e.g. Adelaide, SA">
+          </div>
+          <div class="field">
+            <label>Place of death</label>
+            <input type="text" id="formDeathplace" placeholder="e.g. Melbourne, VIC">
+          </div>
+        </div>
+        <div class="row2">
+          <div class="field">
+            <label>Married <span class="date-hint" id="formMarriageHint"></span></label>
+            <div class="partial-date" id="formMarriageGroup">
+              <input type="number" id="formMarriageDay" placeholder="Day" min="1" max="31" inputmode="numeric" disabled>
+              <select id="formMarriageMonth"><option value="">Month</option></select>
+              <input type="number" id="formMarriageYear" placeholder="Year" min="1" max="2100" inputmode="numeric">
+            </div>
+          </div>
+          <div class="field">
+            <label>Divorced <span class="date-hint" id="formDivorceHint"></span></label>
+            <div class="partial-date" id="formDivorceGroup">
+              <input type="number" id="formDivorceDay" placeholder="Day" min="1" max="31" inputmode="numeric" disabled>
+              <select id="formDivorceMonth"><option value="">Month</option></select>
+              <input type="number" id="formDivorceYear" placeholder="Year" min="1" max="2100" inputmode="numeric">
+            </div>
+          </div>
+        </div>
+      </div>
+    </details>
+    <div class="field">
+      <label>Description</label>
+      <textarea id="formDesc" placeholder="Whatever you'd like to remember about them…"></textarea>
+    </div>
+    <div class="checkrow">
+      <input type="checkbox" id="formFav">
+      <label for="formFav" style="margin:0; color:var(--ink); font-size:13px;">Favourite — pin to top of birthdays</label>
+    </div>
+    <button class="btn primary" id="formSave" style="width:100%; justify-content:center; padding:11px;">Done</button>
+  </div>
+</div>
+
+<!-- Birthdays panel -->
+<div class="panel left" id="bdayPanel">
+  <button class="panel-close" id="closeBday">✕</button>
+  <h2>Upcoming birthdays</h2>
+  <p class="subtle">Favourites are pinned to the top. ★</p>
+  <div id="bdayList" style="margin-top:14px;"></div>
+</div>
+
+<div class="panel left" id="fixItPanel">
+  <button class="panel-close" id="closeFixIt">✕</button>
+  <h2>Fix it — results</h2>
+  <div id="fixItResults" style="margin-top:14px;"></div>
+</div>
+
+<!-- Export panel -->
+<div class="panel left" id="exportPanel">
+  <button class="panel-close" id="closeExport">✕</button>
+  <h2>Export your tree</h2>
+  <p class="subtle">Everything stays on your side — nothing here gets sent anywhere but the file you download.</p>
+  <hr class="soft">
+  <div style="display:flex; flex-direction:column; gap:10px;">
+    <button class="btn" id="expJson">⬇ Download as JSON</button>
+    <button class="btn" id="expMd">⬇ Download as Markdown</button>
+    <button class="btn" id="expZip">⬇ Download as ZIP (data, photos & the app itself)</button>
+  </div>
+  <hr class="soft">
+  <h2 style="font-size:16px;">Fix it</h2>
+  <p class="subtle" style="margin-bottom:10px;">Finds anyone with exactly two identified parents who aren't yet tagged as spouses of each other, and marries them automatically — that's always a safe, sure thing. It can't guess an actual relation label for anyone (Father vs Sister vs Aunt), so those get listed for you to fill in by hand.</p>
+  <button class="btn" id="btnFixIt" style="width:100%; justify-content:center; margin-bottom:14px;">🔧 Fix it</button>
+  <hr class="soft">
+  <h2 style="font-size:16px;">For sharing / diagnosing</h2>
+  <p class="subtle" style="margin-bottom:10px;">If you want help troubleshooting without sharing real names, dates, or photos — these swap everyone's name for "Person 1", "Person 2" etc. (Me stays "Me"), and strip photos, dates, places and descriptions. The relationships and layout stay intact, which is all that's usually needed to spot what's going wrong.</p>
+  <div style="display:flex; flex-direction:column; gap:10px;">
+    <button class="btn" id="expJsonAnon">🕵 Anonymised JSON (data only)</button>
+    <button class="btn" id="expScreenshot">📷 Screenshot of the tree</button>
+    <button class="btn" id="expScreenshotAnon">🕵 Anonymised screenshot</button>
+  </div>
+  <hr class="soft">
+  <h2 style="font-size:16px;">Import a tree</h2>
+  <p class="subtle" style="margin-bottom:10px;">Bring back a tree you exported before — from a JSON or ZIP file. This replaces what's currently loaded here, so export a backup first if you're not sure.</p>
+  <input type="file" id="importInput" accept=".json,application/json,.zip,application/zip" style="display:none;">
+  <button class="btn" id="btnImport" style="width:100%; justify-content:center;">⬆ Import from file</button>
+  <hr class="soft">
+  <p class="subtle" style="margin-bottom:10px;">Your data auto-saves privately in this browser, on this device — it never leaves your computer. Clearing your browser's site/history data for this file will wipe it, so it's still worth exporting a backup now and then.</p>
+  <button class="btn" id="btnReset" style="color:var(--danger); border-color:var(--danger); width:100%; justify-content:center;">Clear all data</button>
+</div>
+
+<div class="crop-overlay" id="cropOverlay">
+  <div class="crop-box">
+    <h3>Frame the photo</h3>
+    <p class="subtle">Drag to reposition, use the slider (or scroll/pinch) to zoom.</p>
+    <div class="crop-frame" id="cropFrame">
+      <img id="cropImg" src="" alt="">
+    </div>
+    <div class="crop-zoom">
+      <span>−</span>
+      <input type="range" id="cropZoomSlider" min="1" max="8" step="0.01" value="1">
+      <span>+</span>
+    </div>
+    <div class="crop-actions">
+      <button class="btn" id="cropCancel">Cancel</button>
+      <button class="btn primary" id="cropConfirm">Use this photo</button>
+    </div>
+  </div>
+</div>
+
+<div class="confirm-overlay" id="confirmOverlay">
+  <div class="confirm-box">
+    <p id="confirmMessage"></p>
+    <div class="confirm-actions">
+      <button class="btn" id="confirmCancel">Cancel</button>
+      <button class="btn" id="confirmOk">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<div class="confirm-overlay" id="relationPromptOverlay">
+  <div class="confirm-box">
+    <p id="relationPromptMessage"></p>
+    <div class="quick-relation-row" id="quickRelationRow">
+      <button class="btn" type="button" data-relation="Husband">💍 Husband</button>
+      <button class="btn" type="button" data-relation="Wife">💍 Wife</button>
+      <button class="btn" type="button" data-relation="Partner">💍 Partner</button>
+    </div>
+    <input type="text" id="relationPromptInput" list="relationSuggestions" placeholder="or type any other relation — e.g. Sister, Grandmother — optional" style="margin-bottom:16px;">
+    <div class="confirm-actions">
+      <button class="btn" id="relationPromptSkip">Skip</button>
+      <button class="btn" id="relationPromptSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------------- State ----------------
+  const STORAGE_KEY = 'kinfolk-tree-v1';
+  let state = null;
+  let loaded = false;
+
+  const RELATIONS = ["Mother","Father","Sister","Brother","Wife","Husband","Partner","Daughter","Son",
+    "Grandmother","Grandfather","Great-Grandmother","Great-Grandfather","Aunt","Uncle","Cousin",
+    "Niece","Nephew","Step-Mother","Step-Father","Half-Sister","Half-Brother","Mother-in-law",
+    "Father-in-law","Friend","Godparent","Other"];
+
+  function uid(){ return 'p_' + Math.random().toString(36).slice(2,10) + Date.now().toString(36); }
+
+  function defaultState(){
+    return {
+      me: { id:'me', name:'Me', birth:'', death:'', desc:'', photo:'', fav:false },
+      people: {}
+    };
+  }
+
+  // ---------------- Local storage (IndexedDB, with localStorage fallback) ----------------
+  const DB_NAME = 'kinfolk-db', DB_STORE = 'kv';
+  let idbMode = true;
+
+  function openDB(){
+    return new Promise((resolve, reject)=>{
+      if(!window.indexedDB){ reject(new Error('no indexeddb')); return; }
+      const req = indexedDB.open(DB_NAME, 1);
+      req.onupgradeneeded = ()=> req.result.createObjectStore(DB_STORE);
+      req.onsuccess = ()=> resolve(req.result);
+      req.onerror = ()=> reject(req.error);
+    });
+  }
+  function idbGet(key){
+    return openDB().then(db => new Promise((resolve, reject)=>{
+      const tx = db.transaction(DB_STORE, 'readonly');
+      const req = tx.objectStore(DB_STORE).get(key);
+      req.onsuccess = ()=> resolve(req.result);
+      req.onerror = ()=> reject(req.error);
+    }));
+  }
+  function idbSet(key, value){
+    return openDB().then(db => new Promise((resolve, reject)=>{
+      const tx = db.transaction(DB_STORE, 'readwrite');
+      tx.objectStore(DB_STORE).put(value, key);
+      tx.oncomplete = ()=> resolve(true);
+      tx.onerror = ()=> reject(tx.error);
+    }));
+  }
+
+  async function storageGet(key){
+    try{
+      const val = await idbGet(key);
+      return val;
+    }catch(e){
+      idbMode = false;
+      try{
+        const raw = localStorage.getItem(key);
+        return raw ? JSON.parse(raw) : undefined;
+      }catch(e2){
+        return undefined;
+      }
+    }
+  }
+  async function storageSet(key, value){
+    if(idbMode){
+      try{ await idbSet(key, value); return; }
+      catch(e){ idbMode = false; }
+    }
+    localStorage.setItem(key, JSON.stringify(value));
+  }
+
+  async function loadState(){
+    try{
+      const val = await storageGet(STORAGE_KEY);
+      if(val){
+        state = val;
+        if(!state.me) state.me = defaultState().me;
+        if(!state.people) state.people = {};
+      } else {
+        state = defaultState();
+      }
+    }catch(e){
+      state = defaultState();
+    }
+    // migrate older saves: single "parent2" -> flexible "links" array,
+    // and plain id strings -> {id, relation} objects so extra connections can carry a relation too
+    Object.values(state.people).forEach(p=>{
+      if(!Array.isArray(p.links)){
+        p.links = p.parent2 ? [{id:p.parent2, relation:''}] : [];
+      } else {
+        p.links = p.links.map(l => (typeof l === 'string') ? {id:l, relation:''} : l);
+      }
+      delete p.parent2;
+    });
+    loaded = true;
+  }
+
+  let saveTimer = null;
+  function saveState(){
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(async ()=>{
+      try{
+        await storageSet(STORAGE_KEY, state);
+      }catch(e){
+        showToast("Couldn't save — your browser storage might be full or blocked");
+      }
+    }, 250);
+  }
+
+  // ---------------- Undo / Redo ----------------
+  let undoStack = [], redoStack = [];
+  function snapshotForUndo(){
+    undoStack.push(JSON.stringify(state));
+    if(undoStack.length > 40) undoStack.shift();
+    redoStack = [];
+  }
+  function undo(){
+    if(undoStack.length === 0){ showToast('Nothing to undo'); return; }
+    redoStack.push(JSON.stringify(state));
+    state = JSON.parse(undoStack.pop());
+    saveState();
+    closeAllPanels();
+    render(document.getElementById('searchInput').value);
+    showToast('Undone');
+  }
+  function redo(){
+    if(redoStack.length === 0){ showToast('Nothing to redo'); return; }
+    undoStack.push(JSON.stringify(state));
+    state = JSON.parse(redoStack.pop());
+    saveState();
+    closeAllPanels();
+    render(document.getElementById('searchInput').value);
+    showToast('Redone');
+  }
+  document.addEventListener('keydown', (e)=>{
+    const mod = e.ctrlKey || e.metaKey;
+    if(!mod) return;
+    const tag = (document.activeElement && document.activeElement.tagName) || '';
+    if(tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return; // let native field undo happen
+    const key = e.key.toLowerCase();
+    if(key === 'z' && !e.shiftKey){ e.preventDefault(); undo(); }
+    else if((key === 'z' && e.shiftKey) || key === 'y'){ e.preventDefault(); redo(); }
+  });
+
+  // ---------------- Shift: hold to reveal the "+" connect handles, and to switch drag mode ----------------
+  document.addEventListener('keydown', (e)=>{
+    if(e.key === 'Shift'){ document.body.classList.add('show-handles'); updateModeBar(); scheduleProximityUpdate(); }
+  });
+  document.addEventListener('keyup', (e)=>{
+    if(e.key === 'Shift'){ document.body.classList.remove('show-handles'); updateModeBar(); }
+  });
+  window.addEventListener('blur', ()=>{ document.body.classList.remove('show-handles'); updateModeBar(); });
+
+  // ---------------- Handle proximity: the "+" buttons grow and brighten near the cursor ----------------
+  let lastMouseX = null, lastMouseY = null;
+  let proximityRAFPending = false;
+  const HANDLE_NEAR = 70, HANDLE_FAR = 300;
+
+  function scheduleProximityUpdate(){
+    if(proximityRAFPending) return;
+    proximityRAFPending = true;
+    requestAnimationFrame(()=>{
+      proximityRAFPending = false;
+      updateHandleProximity();
+    });
+  }
+
+  function updateHandleProximity(){
+    if(!document.body.classList.contains('show-handles') || lastMouseX === null) return;
+    document.querySelectorAll('.bubble .handle').forEach(h=>{
+      const rect = h.getBoundingClientRect();
+      const cx = rect.left + rect.width/2, cy = rect.top + rect.height/2;
+      const dist = Math.hypot(lastMouseX - cx, lastMouseY - cy);
+      let t = 1 - (dist - HANDLE_NEAR) / (HANDLE_FAR - HANDLE_NEAR);
+      t = Math.max(0, Math.min(1, t));
+      h.style.setProperty('--proximity', t.toFixed(3));
+    });
+  }
+
+  document.addEventListener('mousemove', (e)=>{
+    lastMouseX = e.clientX; lastMouseY = e.clientY;
+    if(document.body.classList.contains('show-handles')) scheduleProximityUpdate();
+  });
+
+  // ---------------- Bottom mode indicator ----------------
+  function updateModeBar(){
+    const bar = document.getElementById('modeBar');
+    if(connectDrag){
+      bar.style.display = 'flex';
+      if(currentShiftHeld){
+        bar.className = 'mode-link';
+        bar.textContent = '🔗 Also-connect mode — drop on someone to link them, without moving anyone';
+      } else {
+        bar.className = 'mode-reconnect';
+        bar.textContent = '↷ Reconnect mode — drop on a bubble to move them here, or empty space to add someone new (hold Shift to link instead)';
+      }
+    } else if(document.body.classList.contains('show-handles')){
+      bar.style.display = 'flex';
+      bar.className = 'mode-idle';
+      bar.textContent = '✋ Shift held — drag a bubble\'s + to connect people';
+    } else {
+      bar.style.display = 'none';
+    }
+  }
+
+  // ---------------- Helpers ----------------
+  function showToast(msg){
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(t._timer);
+    t._timer = setTimeout(()=>t.classList.remove('show'), 2200);
+  }
+
+  function initials(name){
+    return (name||'?').trim().split(/\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase();
+  }
+
+  // Dates can be stored with three levels of precision: "YYYY", "YYYY-MM", or "YYYY-MM-DD"
+  // (full dates use the same format as before, so nothing needed to migrate for existing data).
+  function parsePartialDate(str){
+    if(!str) return null;
+    const parts = String(str).split('-');
+    const year = parseInt(parts[0], 10);
+    if(!year) return null;
+    const month = parts[1] ? parseInt(parts[1], 10) : null; // 1-12
+    const day = parts[2] ? parseInt(parts[2], 10) : null;
+    return { year, month, day };
+  }
+
+  function partialDatePrecision(str){
+    const p = parsePartialDate(str);
+    if(!p) return null;
+    if(p.day) return 'day';
+    if(p.month) return 'month';
+    return 'year';
+  }
+
+  // A JS Date usable for sorting/maths, falling back to January/the 1st for whatever's missing.
+  function approxDate(str){
+    const p = parsePartialDate(str);
+    if(!p) return null;
+    return new Date(p.year, (p.month || 1) - 1, p.day || 1);
+  }
+
+  // A full, exact date — used where an approximation genuinely won't do (a real calendar birthday).
+  function parseDate(str){
+    const p = parsePartialDate(str);
+    if(!p || !p.month || !p.day) return null;
+    const d = new Date(p.year, p.month - 1, p.day);
+    return isNaN(d) ? null : d;
+  }
+
+  function computeAge(person){
+    const b = approxDate(person.birth);
+    if(!b) return null;
+    const end = person.death ? approxDate(person.death) : new Date();
+    if(!end) return null;
+    let age = end.getFullYear() - b.getFullYear();
+    const m = end.getMonth() - b.getMonth();
+    if(m < 0 || (m === 0 && end.getDate() < b.getDate())) age--;
+    return age;
+  }
+
+  // True if the age above is a rough estimate rather than exact — i.e. birth (or death, for
+  // someone who's passed) is missing its month or day.
+  function ageIsApprox(person){
+    if(partialDatePrecision(person.birth) !== 'day') return true;
+    if(person.death && partialDatePrecision(person.death) !== 'day') return true;
+    return false;
+  }
+
+  function fmtDate(str){
+    const p = parsePartialDate(str);
+    if(!p) return '';
+    if(p.day){
+      return new Date(p.year, p.month-1, p.day).toLocaleDateString('en-AU', { day:'numeric', month:'long', year:'numeric' });
+    }
+    if(p.month){
+      return new Date(p.year, p.month-1, 1).toLocaleDateString('en-AU', { month:'long', year:'numeric' });
+    }
+    return String(p.year);
+  }
+
+  function nextBirthday(birthStr){
+    const b = parseDate(birthStr); // needs an exact month + day — can't count down to an unknown day
+    if(!b) return null;
+    const now = new Date(); now.setHours(0,0,0,0);
+    let next = new Date(now.getFullYear(), b.getMonth(), b.getDate());
+    if(next < now) next = new Date(now.getFullYear()+1, b.getMonth(), b.getDate());
+    const days = Math.round((next - now) / 86400000);
+    const turning = next.getFullYear() - b.getFullYear();
+    return { date: next, days, turning };
+  }
+
+  function allPeople(){
+    return [state.me, ...Object.values(state.people)];
+  }
+
+  function getPerson(id){
+    if(id === 'me') return state.me;
+    return state.people[id];
+  }
+
+  // A "links" entry is {id, relation}. This reads the id defensively, in case anything
+  // ever hands us an old-style plain string entry instead.
+  function linkTargetId(l){
+    return (typeof l === 'string') ? l : (l && l.id);
+  }
+  function linkRelation(l){
+    return (typeof l === 'string') ? '' : ((l && l.relation) || '');
+  }
+
+  // ---------------- Layout (radial tree) ----------------
+  function buildChildrenMap(){
+    const map = {};
+    Object.values(state.people).forEach(p=>{
+      const parent = (p.connectedTo && getPerson(p.connectedTo)) ? p.connectedTo : 'me';
+      if(!map[parent]) map[parent] = [];
+      map[parent].push(p.id);
+    });
+    return map;
+  }
+
+  function countLeaves(id, childrenMap, memo){
+    if(memo[id] !== undefined) return memo[id];
+    const kids = childrenMap[id] || [];
+    if(kids.length === 0){ memo[id] = 1; return 1; }
+    let sum = 0;
+    kids.forEach(k => sum += countLeaves(k, childrenMap, memo));
+    memo[id] = sum;
+    return sum;
+  }
+
+  // Undirected adjacency across ALL connections (primary + extra links) — the "whole family graph",
+  // as opposed to just the primary tree used for layout angles.
+  function buildUndirectedAdjacency(){
+    const adj = {};
+    function addEdge(a, b){
+      if(!a || !b || a === b) return;
+      if(!adj[a]) adj[a] = new Set();
+      if(!adj[b]) adj[b] = new Set();
+      adj[a].add(b); adj[b].add(a);
+    }
+    Object.values(state.people).forEach(p=>{
+      addEdge(p.id, p.connectedTo || 'me');
+      if(Array.isArray(p.links)) p.links.forEach(l => addEdge(p.id, linkTargetId(l)));
+    });
+    return adj;
+  }
+
+  function bfsDistancesFrom(startId){
+    const adj = buildUndirectedAdjacency();
+    const dist = { [startId]: 0 };
+    const queue = [startId];
+    while(queue.length){
+      const cur = queue.shift();
+      const neighbors = adj[cur] ? Array.from(adj[cur]) : [];
+      neighbors.forEach(n=>{
+        if(dist[n] === undefined){ dist[n] = dist[cur] + 1; queue.push(n); }
+      });
+    }
+    return dist;
+  }
+
+  // Spot a likely spouse/partner of a person, based on the free-text relation label people enter
+  // (e.g. someone connected to them with relation "Husband", "Wife", or "Partner").
+  const SPOUSE_WORDS = ['wife','husband','partner','spouse'];
+  function isSpouseRelation(rel){
+    if(!rel) return false;
+    const r = rel.toLowerCase();
+    return SPOUSE_WORDS.some(w => r.includes(w));
+  }
+  function findSpousesOf(personId){
+    const spouses = new Set();
+    if(!personId) return spouses;
+    const p = getPerson(personId);
+    if(p){
+      if(p.connectedTo && isSpouseRelation(p.relation)) spouses.add(p.connectedTo);
+      if(Array.isArray(p.links)){
+        p.links.forEach(l=>{ if(isSpouseRelation(linkRelation(l))) spouses.add(linkTargetId(l)); });
+      }
+    }
+    Object.values(state.people).forEach(other=>{
+      if(other.connectedTo === personId && isSpouseRelation(other.relation)) spouses.add(other.id);
+      if(Array.isArray(other.links)){
+        other.links.forEach(l=>{
+          if(linkTargetId(l) === personId && isSpouseRelation(linkRelation(l))) spouses.add(other.id);
+        });
+      }
+    });
+    spouses.delete(personId);
+    return spouses;
+  }
+
+  // ---------------- Generation-aware hierarchical layout (parents above children) ----------------
+  // How many rows apart two connected people are, based on the relation label between them.
+  // Positive words below the referenced generation etc. Unrecognised/blank relations default to 0
+  // (same row) — a safe fallback rather than guessing.
+  const RELATION_GEN_DELTA = {
+    'mother':-1,'father':-1,'mum':-1,'mom':-1,'dad':-1,'papa':-1,'mama':-1,'parent':-1,
+    'stepmother':-1,'stepfather':-1,'motherinlaw':-1,'fatherinlaw':-1,
+    'grandmother':-2,'grandfather':-2,'grandma':-2,'grandpa':-2,'nan':-2,'nanna':-2,'nana':-2,'pop':-2,
+    'greatgrandmother':-3,'greatgrandfather':-3,
+    'aunt':-1,'uncle':-1,'godparent':-1,
+    'son':1,'daughter':1,'child':1,'stepson':1,'stepdaughter':1,
+    'grandson':2,'granddaughter':2,'grandchild':2,
+    'greatgrandson':3,'greatgranddaughter':3,
+    'niece':1,'nephew':1,
+    'wife':0,'husband':0,'partner':0,'spouse':0,
+    'sister':0,'brother':0,'sibling':0,'halfsister':0,'halfbrother':0,'cousin':0,'friend':0
+  };
+  function relationGenDelta(text){
+    if(!text) return null;
+    const words = String(text).toLowerCase().replace(/[^a-z]+/g, ' ').split(/\s+/).filter(Boolean);
+    for(const w of words){ if(w in RELATION_GEN_DELTA) return RELATION_GEN_DELTA[w]; }
+    return null;
+  }
+
+  // A person's row number relative to Me (negative = above/older, positive = below/younger),
+  // worked out from the relation labels across the WHOLE graph (primary connections and extra
+  // links, in both directions), not just one chain — so it stays consistent regardless of which
+  // parent happens to be "primary" or which direction a link was drawn.
+  function computeGenerationLevels(){
+    const gen = { me: 0 };
+    const queue = ['me'];
+    while(queue.length){
+      const cur = queue.shift();
+      const curPerson = getPerson(cur);
+      Object.values(state.people).forEach(p=>{
+        if(p.connectedTo === cur && gen[p.id] === undefined){
+          const d = relationGenDelta(p.relation);
+          gen[p.id] = gen[cur] + (d===null ? 0 : d);
+          queue.push(p.id);
+        }
+      });
+      if(curPerson && curPerson.connectedTo && gen[curPerson.connectedTo] === undefined){
+        const d = relationGenDelta(curPerson.relation);
+        gen[curPerson.connectedTo] = gen[cur] - (d===null ? 0 : d);
+        queue.push(curPerson.connectedTo);
+      }
+      if(curPerson && Array.isArray(curPerson.links)){
+        curPerson.links.forEach(l=>{
+          const tid = linkTargetId(l);
+          if(gen[tid] === undefined){
+            const d = relationGenDelta(linkRelation(l));
+            gen[tid] = gen[cur] + (d===null ? 0 : d);
+            queue.push(tid);
+          }
+        });
+      }
+      Object.values(state.people).forEach(other=>{
+        if(gen[other.id] !== undefined) return;
+        if(Array.isArray(other.links)){
+          const found = other.links.find(l => linkTargetId(l) === cur);
+          if(found){
+            const d = relationGenDelta(linkRelation(found));
+            gen[other.id] = gen[cur] - (d===null ? 0 : d);
+            queue.push(other.id);
+          }
+        }
+      });
+    }
+    Object.keys(state.people).forEach(id=>{ if(gen[id] === undefined) gen[id] = 0; });
+    return gen;
+  }
+
+  const ROW_HEIGHT = 215;
+  const UNIT_WIDTH = 135;
+  const COUPLE_GAP = 105;
+  const MIN_ROW_GAP = 105;
+
+  // Splits every connectedTo edge into the direction it ACTUALLY goes — a real descendant
+  // edge (this person is younger than who they're connected to) or a real ancestor edge (they
+  // describe themselves as OLDER, e.g. "Connected to: Me, Relation: Mother" — the natural way
+  // most people add their own parents). Treating both the same was the bug behind bubbles like
+  // a sibling ending up squeezed off to one side of their own grandparents' whole branch.
+  function buildDirectedMaps(){
+    const descendants = {}, ancestors = {};
+    Object.values(state.people).forEach(p=>{
+      const connTo = p.connectedTo || 'me';
+      const delta = relationGenDelta(p.relation);
+      if(delta !== null && delta < 0){
+        (ancestors[connTo] = ancestors[connTo] || []).push(p.id);
+      } else {
+        (descendants[connTo] = descendants[connTo] || []).push(p.id);
+      }
+    });
+    return { descendants, ancestors };
+  }
+
+  // A final pass that fixes spacing row by row — but unlike a plain left-to-right nudge, it
+  // first groups any mutual same-row spouses it finds into one adjacent unit before spacing
+  // everyone out, so a couple can never end up with someone unrelated wedged between them.
+  function finalizeRowOrder(positions, generations){
+    const rows = {};
+    Object.keys(positions).forEach(id=>{
+      const g = generations[id] !== undefined ? generations[id] : 0;
+      (rows[g] = rows[g] || []).push(id);
+    });
+    Object.values(rows).forEach(ids=>{
+      const rowSet = new Set(ids);
+      const consumed = new Set();
+      const items = [];
+      ids.forEach(id=>{
+        if(consumed.has(id)) return;
+        const spouses = findSpousesOf(id);
+        let partner = null;
+        spouses.forEach(sid=>{ if(!partner && rowSet.has(sid) && !consumed.has(sid)) partner = sid; });
+        if(partner){
+          consumed.add(id); consumed.add(partner);
+          items.push({ ids: positions[id].x <= positions[partner].x ? [id, partner] : [partner, id],
+                       x: (positions[id].x + positions[partner].x) / 2 });
+        } else {
+          consumed.add(id);
+          items.push({ ids: [id], x: positions[id].x });
+        }
+      });
+      items.sort((a,b) => a.x - b.x);
+      let cursorEnd = null;
+      items.forEach(item=>{
+        if(item.ids.length === 2){
+          const startX = cursorEnd === null ? item.x - COUPLE_GAP/2 : cursorEnd + MIN_ROW_GAP;
+          positions[item.ids[0]].x = startX;
+          positions[item.ids[1]].x = startX + COUPLE_GAP;
+          cursorEnd = startX + COUPLE_GAP;
+        } else {
+          const startX = cursorEnd === null ? item.x : cursorEnd + MIN_ROW_GAP;
+          positions[item.ids[0]].x = startX;
+          cursorEnd = startX;
+        }
+      });
+    });
+  }
+
+  // ONE unified, family-unit layout (replaces the old two-pass "place then nudge" approach, which
+  // let unrelated people wedge between couples and mixed families together on a row).
+  //  - Every person belongs to a "unit": a single person, or a couple (spouses on the same row).
+  //  - Each unit hangs under ONE primary parent unit (the one closest to Me). Its children units
+  //    get their own horizontal slot, so different families can never share/overlap a slot.
+  //  - A married-in partner's OWN parents + siblings become a separate in-law tree, parked
+  //    directly beside the tree they marry into (on the side that partner is standing).
+  //  - Siblings who are partnered sit at the outer edges of the sibling group with their
+  //    partner on the OUTSIDE, so a partner is never mistaken for another sibling's partner.
+  function computeLayout(){
+    const gen = computeGenerationLevels();
+    const G = id => gen[id] || 0;
+    const ids = allPeople().map(p => p.id);
+    const idSet = new Set(ids);
+    const dist = bfsDistancesFrom('me');
+    const D = id => dist[id] === undefined ? 9999 : dist[id];
+
+    const parents = {}, kids = {};
+    ids.forEach(id=>{
+      parents[id] = findDirectParentsOf(id).filter(p => idSet.has(p) && p !== id && G(p) === G(id) - 1);
+      parents[id].forEach(p => (kids[p] = kids[p] || []).push(id));
+    });
+
+    // Units (singles and couples)
+    const unitOf = {}, units = [];
+    ids.forEach(id=>{
+      if(unitOf[id]) return;
+      const u = { members:[id], pu:null, kidUnits:[], blood:id, id:units.length };
+      unitOf[id] = u; units.push(u);
+      const q = [id];
+      while(q.length){
+        const c = q.shift();
+        findSpousesOf(c).forEach(sp=>{
+          if(idSet.has(sp) && !unitOf[sp] && G(sp) === G(c)){ unitOf[sp] = u; u.members.push(sp); q.push(sp); }
+        });
+      }
+    });
+
+    // Primary parent unit = the parent unit closest to Me
+    units.forEach(u=>{
+      let best = null, bestD = Infinity;
+      u.members.forEach(m => parents[m].forEach(p=>{
+        const pu = unitOf[p]; if(pu === u) return;
+        const d = Math.min.apply(null, pu.members.map(D));
+        if(d < bestD){ bestD = d; best = pu; }
+      }));
+      u.pu = best;
+      u.blood = u.members.find(m => parents[m].some(p => best && unitOf[p] === best)) || u.members[0];
+    });
+    // Siblings with no parents entered: pull them into their sibling's family group so they sit
+    // right beside them, instead of each becoming a separate far-flung tree of their own.
+    const SIB = /sister|brother|sibling/i;
+    const sibEdges = [];
+    allPeople().forEach(p=>{
+      if(p.id !== 'me' && p.connectedTo && idSet.has(p.connectedTo) && SIB.test(p.relation || '')) sibEdges.push([p.id, p.connectedTo]);
+      (p.links || []).forEach(l=>{ const t = linkTargetId(l); if(idSet.has(t) && SIB.test(linkRelation(l))) sibEdges.push([p.id, t]); });
+    });
+    // A sibling joins the family of THEIR sibling's own parents (not their sibling's partner's)
+    const ownPU = id => parents[id].length ? unitOf[parents[id][0]] : null;
+    const sibOf = {}, inlawGroup = {};
+    function joinSib(a, b){
+      const ua = unitOf[a], ub = unitOf[b];
+      if(ua === ub || ua.pu) return false;
+      const pb = ownPU(b);
+      if(pb && pb !== ua){ ua.pu = pb; ua.blood = a; return true; }
+      if(pb) return false;
+      if(!ub.pu){
+        const V = { members:[], pu:null, kidUnits:[], blood:null, id:units.length, virtual:true };
+        units.push(V); ub.pu = V; ub.blood = b; ua.pu = V; ua.blood = a; return true;
+      }
+      if(ub.pu.virtual){ ua.pu = ub.pu; ua.blood = a; return true; }
+      // b married into another family and has no parents of their own: gather b's parentless
+      // siblings into ONE block that gets parked right beside b's couple (not scattered as loners).
+      let g = inlawGroup[b];
+      if(!g){ g = inlawGroup[b] = { members:[], pu:null, kidUnits:[], blood:null, id:units.length, virtual:true, inlawOf:b }; units.push(g); }
+      ua.pu = g; ua.blood = a; return true;
+    }
+    for(let pass = 0; pass < 4; pass++){
+      sibEdges.forEach(([a, b])=>{ if(!joinSib(a, b)) joinSib(b, a); });
+    }
+    sibEdges.forEach(([a, b])=>{ if(!unitOf[a].pu) sibOf[a] = b; if(!unitOf[b].pu) sibOf[b] = a; });
+    units.forEach(u=>{
+      if(u.virtual){ u.kidUnits = units.filter(k => k.pu === u); return; }
+      const seen = new Set();
+      u.members.forEach(m => (kids[m] || []).forEach(k=>{
+        const ku = unitOf[k];
+        if(ku.pu === u && !seen.has(ku)){ seen.add(ku); u.kidUnits.push(ku); }
+      }));
+      units.forEach(k=>{ if(k.pu === u && !seen.has(k)){ seen.add(k); u.kidUnits.push(k); } });
+    });
+
+    // Order siblings: singles in the middle, partnered siblings at the outer edges (partner outside)
+    units.forEach(u=>{
+      const singles = u.kidUnits.filter(k => k.members.length === 1);
+      const paired = u.kidUnits.filter(k => k.members.length > 1);
+      const left = [], right = [];
+      paired.forEach((k, i)=>{
+        const others = k.members.filter(m => m !== k.blood);
+        if(i % 2 === 0){ k.members = [k.blood].concat(others); right.push(k); }
+        else { k.members = others.concat([k.blood]); left.unshift(k); }
+      });
+      u.kidUnits = left.concat(singles, right);
+    });
+
+    // Tree packing: each unit's branch is laid out on its own (unit centred at x = 0), then sibling
+    // branches are slid together left to right until they just clear each other on every row they
+    // share. Parent sits over the focus kid (the line leading to Me / an in-law's partner), or
+    // over the middle of its kids. No fixed-width slots, so nothing is pushed apart needlessly.
+    function layoutTree(u){
+      const y = u.members.length ? ROW_HEIGHT * G(u.members[0]) : 0;
+      const kms = u.kidUnits.map(k => ({ k, map: layoutTree(k), kidY: ROW_HEIGHT * G(k.members[0]) }));
+      const acc = {}, shifts = [];
+      kms.forEach((km, idx)=>{
+        const rows = {};
+        Object.keys(km.map).forEach(id=>{
+          const r = rows[km.map[id].y], x = km.map[id].x;
+          rows[km.map[id].y] = r ? [Math.min(r[0], x), Math.max(r[1], x)] : [x, x];
+        });
+        let sh = 0;
+        if(idx > 0){
+          sh = -Infinity;
+          Object.keys(rows).forEach(yy=>{
+            if(acc[yy] === undefined) return;
+            const gap = (+yy === km.kidY) ? UNIT_WIDTH : UNIT_WIDTH * 1.35;
+            sh = Math.max(sh, acc[yy] + gap - rows[yy][0]);
+          });
+          if(!isFinite(sh)) sh = shifts[idx-1] + UNIT_WIDTH;
+        }
+        shifts.push(sh);
+        Object.keys(rows).forEach(yy=>{ acc[yy] = Math.max(acc[yy] === undefined ? -Infinity : acc[yy], rows[yy][1] + sh); });
+      });
+      let cx = 0;
+      if(kms.length){
+        const fi = u.focus ? u.kidUnits.indexOf(u.focus) : -1;
+        cx = fi >= 0 ? shifts[fi] + (u.splitShift || 0) : (shifts[0] + shifts[kms.length - 1]) / 2;
+      }
+      const out = {};
+      kms.forEach((km, idx)=>{
+        Object.keys(km.map).forEach(id=>{ out[id] = { x: km.map[id].x + shifts[idx] - cx, y: km.map[id].y }; });
+      });
+      u.members.forEach((m, i)=>{ out[m] = { x: (i - (u.members.length - 1)/2) * COUPLE_GAP, y }; });
+      return out;
+    }
+
+    // Roots. Each in-law family is its own tree; it gets slotted in beside the tree it marries
+    // into, as close as possible without touching anything on a shared row, and (where it can)
+    // directly above the married-in person. Trees on different rows can tuck in over/under each other.
+    const rootOf = u => { while(u.pu) u = u.pu; return u; };
+    const usedRoots = new Set();
+    const attachList = [];
+    function discover(root){
+      usedRoots.add(root);
+      (function walk(u){
+        u.members.forEach((m, i)=>{
+          if(m === u.blood) return;
+          parents[m].forEach(p=>{
+            const r2 = rootOf(unitOf[p]);
+            if(usedRoots.has(r2)) return;
+            attachList.push({ root:r2, m, p, u });
+            discover(r2);
+          });
+        });
+        u.kidUnits.forEach(walk);
+      })(root);
+    }
+    const meRoot = rootOf(unitOf['me']);
+    discover(meRoot);
+    units.forEach(u=>{
+      if(u.pu || usedRoots.has(u)) return;
+      if(u.inlawOf){
+        const first = u.kidUnits[0];
+        attachList.push({ root:u, m:u.inlawOf, p:first ? first.members[0] : null, u:unitOf[u.inlawOf], sib:true });
+      } else {
+        attachList.push({ root:u, m:sibOf[u.members[0]] || null, p:u.members[0], u:null });
+      }
+      discover(u);
+    });
+
+    // Centre each ancestor directly above the couple that leads down to Me (and down to each
+    // in-law's partner), with siblings fanned out to the side the partner ISN'T on.
+    function markChain(u, side){
+      while(u && u.pu){
+        if(side && !u.pu.outer) u.pu.outer = side;
+        if(!u.pu.focus) u.pu.focus = u;
+        u = u.pu;
+      }
+    }
+    // The spine down to Me: alternate which side the married-in partner (and so their family) sits
+    // on at each generation, so in-law families balance left and right instead of piling up on one side.
+    (function(){
+      let u = unitOf['me'], d = 0; const chain = [];
+      while(u){ u.depth = d++; chain.push(u); u = u.pu; }
+      chain.forEach(x=>{
+        if(x.members.length < 2 || x.depth < 1) return;
+        const others = x.members.filter(m => m !== x.blood);
+        x.members = (x.depth % 2 === 1) ? [x.blood].concat(others) : others.concat([x.blood]);
+      });
+    })();
+    markChain(unitOf['me']);
+    attachList.forEach(a=>{
+      if(!a.p) return;
+      const side = a.u ? (a.u.members.indexOf(a.m) < a.u.members.indexOf(a.u.blood) ? 'L' : 'R') : 'R';
+      markChain(unitOf[a.p], side);
+      // Both partners have parents: blood side's parents sit up-and-over their own child,
+      // the partner's parents sit up-and-over the partner (a mirror pair either side of the couple).
+      const C = a.u, PA = C && C.pu, PB = unitOf[a.p];
+      if(!a.sib && C && PA && PB && PA.focus === C && PB !== PA){
+        const D = (((PA.members.length - 1) + (PB.members.length - 1)) * COUPLE_GAP / 4) + UNIT_WIDTH * 0.6;
+        a.D = D; a.sgn = side === 'R' ? 1 : -1;
+        PA.splitShift = -a.sgn * D;
+      }
+    });
+    units.forEach(u=>{
+      const f = u.focus; if(!f) return;
+      const others = u.kidUnits.filter(k => k !== f);
+      let L, R;
+      const bi = f.members.indexOf(f.blood);
+      if(u.outer && !(f.depth >= 0)){ if(u.outer === 'R'){ L = []; R = others; } else { L = others; R = []; } }
+      else if(f.members.length > 1 && bi === 0){ L = others; R = []; }
+      else if(f.members.length > 1 && bi === f.members.length - 1){ L = []; R = others; }
+      else { const h = Math.ceil(others.length / 2); L = others.slice(0, h); R = others.slice(h); }
+      L.forEach(k=>{ if(k.members.length > 1) k.members = k.members.filter(m => m !== k.blood).concat([k.blood]); });
+      R.forEach(k=>{ if(k.members.length > 1) k.members = [k.blood].concat(k.members.filter(m => m !== k.blood)); });
+      u.kidUnits = L.concat([f], R);
+    });
+
+    const positions = {}, hull = {};
+    function addTree(map, dx){
+      Object.keys(map).forEach(id=>{
+        const x = map[id].x + dx, y = map[id].y;
+        positions[id] = { x, y };
+        const h = hull[y];
+        if(!h) hull[y] = [x, x]; else { h[0] = Math.min(h[0], x); h[1] = Math.max(h[1], x); }
+      });
+    }
+    const SEP = UNIT_WIDTH * 1.4; // breathing room between two different families on the same row
+    const mainMap = layoutTree(meRoot); addTree(mainMap, 0);
+    const queue = attachList.slice();
+    const ready = x => !x.m || positions[x.m];
+    while(queue.length){
+      // Siblings of a married-in partner go in the moment that partner is placed, before other families can crowd in.
+      let qi = queue.findIndex(x => x.sib && ready(x));
+      if(qi < 0) qi = queue.findIndex(ready);
+      if(qi < 0) qi = 0;
+      const a = queue.splice(qi, 1)[0];
+      const map = layoutTree(a.root);
+      const rowMin = {}, rowMax = {};
+      Object.keys(map).forEach(id=>{
+        const y = map[id].y, x = map[id].x;
+        rowMin[y] = rowMin[y] === undefined ? x : Math.min(rowMin[y], x);
+        rowMax[y] = rowMax[y] === undefined ? x : Math.max(rowMax[y], x);
+      });
+      const sideOf = a.u ? (a.u.members.indexOf(a.m) < a.u.members.indexOf(a.u.blood) ? 'L' : 'R') : 'R';
+      let desired = null;
+      if(!a.sib && a.m && positions[a.m] && map[a.p]){
+        const pm = unitOf[a.p].members.filter(id => map[id]);
+        const pbCentre = pm.reduce((sum,id) => sum + map[id].x, 0) / pm.length;
+        let target = positions[a.m].x;
+        if(a.D && a.u){
+          const cm = a.u.members.filter(id => positions[id]);
+          target = cm.reduce((sum,id) => sum + positions[id].x, 0) / cm.length + a.sgn * a.D;
+        }
+        desired = target - pbCentre;
+      }
+      let dx;
+      if(sideOf === 'R'){
+        let c = -Infinity;
+        Object.keys(rowMin).forEach(y=>{ if(hull[y]) c = Math.max(c, hull[y][1] + SEP - rowMin[y]); });
+        dx = isFinite(c) ? (desired === null ? c : Math.max(c, desired)) : (desired === null ? 0 : desired);
+      } else {
+        let c = Infinity;
+        Object.keys(rowMax).forEach(y=>{ if(hull[y]) c = Math.min(c, hull[y][0] - SEP - rowMax[y]); });
+        dx = isFinite(c) ? (desired === null ? c : Math.min(c, desired)) : (desired === null ? 0 : desired);
+      }
+      addTree(map, dx);
+    }
+
+    // Centre the whole thing so Me stays at x = 0
+    const shift = positions['me'] ? positions['me'].x : 0;
+    Object.keys(positions).forEach(id => positions[id].x -= shift);
+    ids.forEach(id=>{ if(!positions[id]) positions[id] = { x:0, y: ROW_HEIGHT * G(id) }; });
+
+    // Manual drag overrides always win, for anyone who's been repositioned by hand.
+    allPeople().forEach(p=>{
+      if(typeof p.manualX === 'number' && typeof p.manualY === 'number'){
+        positions[p.id] = { x: p.manualX, y: p.manualY };
+      }
+    });
+    return positions;
+  }
+
+  // Finds children with two identified parents (a couple, tagged as spouses of each other
+  // SOMEWHERE in the tree) so they can be drawn hanging off a shared union dot, T-bar style,
+  // instead of two lines converging straight onto the child from different angles.
+  // Finds someone's direct parents (exactly one generation up), checking BOTH directions —
+  // whether the parent-child fact was recorded from the child's side ("Connected to: Mum,
+  // Relation: Daughter") or the parent's side ("Connected to: Me, Relation: Mother", which is
+  // how most people naturally add their own parents, and the one case where Me itself has no
+  // relation field of its own to check).
+  function findDirectParentsOf(personId){
+    const parents = new Set();
+    const person = getPerson(personId);
+    if(person && person.connectedTo){
+      const d = relationGenDelta(person.relation);
+      if(d === 1) parents.add(person.connectedTo);
+    }
+    if(person && Array.isArray(person.links)){
+      person.links.forEach(l=>{
+        const d = relationGenDelta(linkRelation(l));
+        if(d !== null && d < 0) parents.add(linkTargetId(l));
+      });
+    }
+    Object.values(state.people).forEach(other=>{
+      if(other.connectedTo === personId){
+        const d = relationGenDelta(other.relation);
+        if(d === -1) parents.add(other.id);
+      }
+      if(Array.isArray(other.links)){
+        other.links.forEach(l=>{
+          if(linkTargetId(l) === personId){
+            const d = relationGenDelta(linkRelation(l));
+            if(d === 1) parents.add(other.id);
+          }
+        });
+      }
+    });
+    parents.delete(personId);
+    return Array.from(parents);
+  }
+
+  function computeUnionGroups(){
+    const childUnion = {};
+    const dots = {};
+    allPeople().forEach(child=>{
+      let parents = findDirectParentsOf(child.id);
+      // Only ONE parent recorded, but that parent has exactly one partner: treat the partner as the
+      // other parent too, so the couple gets its parent node (union dot) instead of a lone line.
+      if(parents.length === 1){
+        const sp = Array.from(findSpousesOf(parents[0])).filter(x => x !== child.id && getPerson(x));
+        if(sp.length === 1) parents = [parents[0], sp[0]];
+      }
+      if(parents.length !== 2) return;
+      const [a, b] = parents;
+      if(!findSpousesOf(a).has(b)) return; // only pair them if they're recognised as a couple
+      const dotKey = [a, b].sort().join('|');
+      childUnion[child.id] = { parentIds:[a, b], dotKey };
+      dots[dotKey] = { parentIds:[a, b] };
+    });
+    return { childUnion, dots };
+  }
+
+  // ---------------- Rendering ----------------
+  const bubbleLayer = document.getElementById('bubbleLayer');
+  const linesGroup = document.getElementById('linesGroup');
+  const emptyHint = document.getElementById('emptyHint');
+  let renderedIds = new Set();
+  let lastPositions = {};
+  const selected = new Set(); // ids picked with Cmd/Ctrl + drag (or Cmd/Ctrl + click)
+
+  function bubblePhotoHTML(p){
+    if(p.photo) return `<img src="${p.photo}" alt="" draggable="false">`;
+    return `<span class="initials">${initials(p.name)}</span>`;
+  }
+
+  // True if the edge between these two ids is already represented by a union dot — checked
+  // from either direction, since either one could be the "child" side of that union.
+  function edgeCoveredByUnion(childUnion, aId, bId){
+    if(childUnion[aId] && childUnion[aId].parentIds.includes(bId)) return true;
+    if(childUnion[bId] && childUnion[bId].parentIds.includes(aId)) return true;
+    return false;
+  }
+
+  // Full siblings (not half/step) grouped into families. Siblings are never joined to each other directly:
+  // each group hangs off its parents' union dot (or a small junction above the group if no parents are known).
+  const SIB_RE = /sister|brother|sibling/i, SIB_PARTIAL_RE = /half|step/i;
+  function computeSiblingGroups(){
+    const parent = {}, edges = [];
+    const find = x => parent[x] === x ? x : (parent[x] = find(parent[x]));
+    allPeople().forEach(p=>{
+      const add = (t, r)=>{ if(t !== p.id && getPerson(t) && SIB_RE.test(r || '')) edges.push([p.id, t]); };
+      if(p.connectedTo) add(p.connectedTo, p.relation);
+      (p.links || []).forEach(l => add(linkTargetId(l), linkRelation(l)));
+    });
+    edges.forEach(([a, b])=>{
+      if(!(a in parent)) parent[a] = a;
+      if(!(b in parent)) parent[b] = b;
+      parent[find(a)] = find(b);
+    });
+    const groups = {};
+    Object.keys(parent).forEach(id=>{ const r = find(id); (groups[r] = groups[r] || []).push(id); });
+    return { groups: Object.values(groups), keys: new Set(edges.map(e => e.slice().sort().join('|'))) };
+  }
+
+  function drawAllLines(positions){
+    linesGroup.innerHTML = '';
+    Object.keys(positions).forEach(id=>{ if(positions[id]) positions[id].r = id === 'me' ? 49 : 38; }); // node radius, so wires meet the edge
+    const { childUnion, dots } = computeUnionGroups();
+    const sib = computeSiblingGroups();
+    const inferredEdges = [], junctions = [];
+    sib.groups.forEach(g=>{
+      if(g.length < 2) return;
+      const ref = g.find(id => childUnion[id]);
+      const refParents = g.map(id => ({ id, ps: findDirectParentsOf(id) })).find(x => x.ps.length);
+      let anyParentsKnown = !!ref || !!refParents;
+      g.forEach(id=>{
+        if(childUnion[id] || findDirectParentsOf(id).length) return;
+        if(ref) childUnion[id] = childUnion[ref];
+        else if(refParents) refParents.ps.forEach(pid => { if(pid !== id) inferredEdges.push({ child:id, parent:pid }); });
+      });
+      if(!anyParentsKnown) junctions.push(g);
+    });
+    Object.keys(dots).forEach(key=>{
+      const [a,b] = dots[key].parentIds;
+      const pa = positions[a], pb = positions[b];
+      if(pa && pb){
+        dots[key].x = (pa.x + pb.x) / 2;
+        dots[key].y = (pa.y + pb.y) / 2 + ROW_HEIGHT * 0.5;
+      }
+    });
+    const drawnDots = new Set();
+    const drawnPairs = new Set(); // an A–B wire is only ever drawn once, however many records describe it
+    const pairKeyOf = (x, y) => [x, y].sort().join('|');
+
+    // Pass 1 — every identified union: parent1→dot, parent2→dot (once), dot→child
+    Object.keys(childUnion).forEach(childId=>{
+      const union = childUnion[childId];
+      const dot = dots[union.dotKey];
+      const childPos = positions[childId];
+      if(!dot || dot.x === undefined || !childPos) return;
+      if(!drawnDots.has(union.dotKey)){
+        drawnDots.add(union.dotKey);
+        if(positions[union.parentIds[0]]) drawFamilyLine(positions[union.parentIds[0]], dot, 'family-line');
+        if(positions[union.parentIds[1]]) drawFamilyLine(positions[union.parentIds[1]], dot, 'family-line');
+        const knot = document.createElementNS('http://www.w3.org/2000/svg','circle');
+        knot.setAttribute('class','union-dot');
+        knot.setAttribute('cx', dot.x); knot.setAttribute('cy', dot.y); knot.setAttribute('r', 4.5);
+        linesGroup.appendChild(knot);
+      }
+      drawFamilyLine(dot, childPos, 'family-line');
+    });
+
+    // Pass 2 — the plain primary connectedTo edge for everyone else, skipped wherever that
+    // exact edge is already drawn via a union dot above (from either direction)
+    allPeople().forEach(p=>{
+      if(p.id === 'me') return; // Me has no connectedTo of its own
+      const connTo = p.connectedTo || 'me';
+      if(edgeCoveredByUnion(childUnion, p.id, connTo)) return;
+      if(SIB_RE.test(p.relation || '') && sib.keys.has([p.id, connTo].sort().join('|'))) return;
+      const pos = positions[p.id], connPos = positions[connTo];
+      if(isSpouseRelation(p.relation) && dots[pairKeyOf(p.id, connTo)]) return; // couple already joined by their parent node
+      if(drawnPairs.has(pairKeyOf(p.id, connTo))) return;
+      if(pos && connPos){ drawnPairs.add(pairKeyOf(p.id, connTo)); drawFamilyLine(connPos, pos, 'family-line'); }
+    });
+
+    // Pass 3 — extra "links" edges, same skip-if-covered rule, plus skip a bare spouse-to-spouse
+    // link when that couple already has a union dot drawn elsewhere
+    allPeople().forEach(p=>{
+      if(!Array.isArray(p.links)) return;
+      p.links.forEach(link=>{
+        const linkId = linkTargetId(link);
+        const pos = positions[p.id], lp = positions[linkId];
+        if(!pos || !lp) return;
+        if(edgeCoveredByUnion(childUnion, p.id, linkId)) return;
+        if(SIB_RE.test(linkRelation(link) || '') && sib.keys.has([p.id, linkId].sort().join('|'))) return;
+        if(isSpouseRelation(linkRelation(link))){
+          const pairKey = [p.id, linkId].sort().join('|');
+          if(dots[pairKey]) return;
+        }
+        if(drawnPairs.has(pairKeyOf(p.id, linkId))) return;
+        drawnPairs.add(pairKeyOf(p.id, linkId));
+        drawFamilyLine(lp, pos, 'family-line second-parent-line', linkRelation(link));
+      });
+    });
+
+    // Couples with no children recorded: a small hollow dot on their link. It says "none recorded",
+    // not "none" — it fills in as a normal parent node the moment a child is added.
+    const seenCouples = new Set();
+    allPeople().forEach(p=>{
+      findSpousesOf(p.id).forEach(sid=>{
+        const key = [p.id, sid].sort().join('|');
+        if(seenCouples.has(key) || dots[key]) return;
+        seenCouples.add(key);
+        const a = positions[p.id], b = positions[sid];
+        if(!a || !b || Math.abs(a.y - b.y) > 20) return;
+        const knot = document.createElementNS('http://www.w3.org/2000/svg','circle');
+        knot.setAttribute('class','union-dot unknown-dot');
+        knot.setAttribute('cx', (a.x + b.x) / 2); knot.setAttribute('cy', (a.y + b.y) / 2); knot.setAttribute('r', 4.5);
+        const tip = document.createElementNS('http://www.w3.org/2000/svg','title');
+        tip.textContent = 'No children recorded';
+        knot.appendChild(tip);
+        linesGroup.appendChild(knot);
+      });
+    });
+
+    // Pass 4 — siblings whose own parent links are missing: still hang them off their sibling's single parent
+    inferredEdges.forEach(e=>{
+      if(drawnPairs.has(pairKeyOf(e.parent, e.child))) return;
+      drawnPairs.add(pairKeyOf(e.parent, e.child));
+      if(positions[e.parent] && positions[e.child]) drawFamilyLine(positions[e.parent], positions[e.child], 'family-line');
+    });
+
+    // Pass 5 — sibling groups with no known parents: a small junction above the group, one line down to each sibling
+    junctions.forEach(g=>{
+      const pts = g.map(id => positions[id]).filter(Boolean);
+      if(pts.length < 2) return;
+      const jx = pts.reduce((sum, q) => sum + q.x, 0) / pts.length;
+      const jy = Math.min.apply(null, pts.map(q => q.y)) - ROW_HEIGHT * 0.5;
+      pts.forEach(q => drawFamilyLine({ x:jx, y:jy }, q, 'family-line'));
+      const knot = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      knot.setAttribute('class','union-dot sibling-dot');
+      knot.setAttribute('cx', jx); knot.setAttribute('cy', jy); knot.setAttribute('r', 3.5);
+      linesGroup.appendChild(knot);
+    });
+  }
+
+  // Live line updates while a bubble is mid-drag — cheap re-draw reusing the last computed
+  // layout plus one overridden position, without rebuilding the bubbles themselves.
+  function redrawLinesOnly(overrideId, overrideX, overrideY){
+    const positions = Object.assign({}, lastPositions);
+    if(overrideId) positions[overrideId] = { x: overrideX, y: overrideY };
+    drawAllLines(positions);
+  }
+
+  function redrawLinesMulti(overrides){
+    drawAllLines(Object.assign({}, lastPositions, overrides));
+  }
+
+  function render(filterText){
+    const positions = computeLayout();
+    lastPositions = positions; // cached for live line updates while dragging a bubble
+    bubbleLayer.innerHTML = '';
+    drawAllLines(positions);
+
+    const filter = (filterText||'').trim().toLowerCase();
+    const hasPeople = Object.keys(state.people).length > 0;
+    emptyHint.style.display = hasPeople ? 'none' : 'block';
+
+    const newIds = new Set();
+
+    allPeople().forEach(p=>{
+      const pos = positions[p.id];
+      if(!pos) return;
+      newIds.add(p.id);
+
+      const div = document.createElement('div');
+      const isMe = p.id === 'me';
+      const matched = !filter || p.name.toLowerCase().includes(filter);
+      let cls = 'bubble' + (isMe ? ' me' : '') + (p.fav ? ' favourite star' : '') + (p.death ? ' deceased' : '') + (selected.has(p.id) ? ' selected' : '');
+      if(!renderedIds.has(p.id)) cls += ' entering';
+      if(filter && !matched) cls += ' dim';
+      div.className = cls;
+      div.dataset.id = p.id;
+      div.style.left = (pos.x) + 'px';
+      div.style.top = (pos.y) + 'px';
+      div.style.setProperty('--dur', (4.5 + Math.random()*3) + 's');
+      const age = computeAge(p);
+      const approxTag = (age !== null && ageIsApprox(p)) ? '~' : '';
+      const ageLabel = age === null ? '' : (p.death ? `Lived ${approxTag}${age} yrs` : `${approxTag}${age} yrs`);
+      div.innerHTML = `
+        <div class="photo" style="animation-duration:${(4.5+Math.random()*3).toFixed(1)}s; animation-delay:-${(Math.random()*4).toFixed(1)}s;">
+          ${bubblePhotoHTML(p)}
+          <div class="handle" title="Hold Shift and drag: drop on empty space to add someone, drop on a bubble to reconnect them, keep holding Shift when you drop to link them instead">+</div>
+        </div>
+        <div class="name">${isMe ? 'Me' : escapeHtml(p.name)}${p.nickname ? ` “${escapeHtml(p.nickname)}”` : ''}</div>
+        ${ageLabel ? `<div class="meta">${ageLabel}</div>` : ''}
+      `;
+      attachBubbleDrag(div, p.id);
+      const handleEl = div.querySelector('.handle');
+      handleEl.addEventListener('click', (e)=> e.stopPropagation());
+      handleEl.addEventListener('pointerdown', (e)=>{
+        e.stopPropagation(); e.preventDefault();
+        try{ handleEl.setPointerCapture(e.pointerId); }catch(err){}
+        div.classList.add('dragging-handle');
+        startConnectDrag(p.id, e.clientX, e.clientY, e.shiftKey);
+      });
+      handleEl.addEventListener('pointermove', (e)=>{
+        if(connectDrag) updateConnectDrag(e.clientX, e.clientY, e.shiftKey);
+      });
+      handleEl.addEventListener('pointerup', (e)=>{
+        div.classList.remove('dragging-handle');
+        if(connectDrag) endConnectDrag(e.clientX, e.clientY, e.shiftKey);
+      });
+      bubbleLayer.appendChild(div);
+    });
+
+    renderedIds = newIds;
+    if(document.body.classList.contains('show-handles')) scheduleProximityUpdate();
+  }
+
+  // ---- Wire style (Houdini-style: Shift+S flips between curved and straight/angular wires) ----
+  let wireStyle = 'curved';
+  try{ if(localStorage.getItem('famtree-wire-style') === 'angular') wireStyle = 'angular'; }catch(e){}
+
+  // Wires always LEAVE the bottom of the upper node (or a parent dot) and ENTER the top of the lower
+  // one, so nothing ever slides in from the side. Nodes on the same row link over the top.
+  function drawFamilyLine(fromPos, toPos, className, relation){
+    const up = fromPos.y <= toPos.y ? fromPos : toPos;
+    const low = up === fromPos ? toPos : fromPos;
+    const ur = up.r || 0, lr = low.r || 0;
+    const sameRow = Math.abs(low.y - up.y) <= 40 || (low.y - lr) - (up.y + ur) < 10;
+    let d;
+    if(!sameRow){
+      const x1 = up.x, y1 = up.y + ur, x2 = low.x, y2 = low.y - lr;
+      if(wireStyle === 'angular'){
+        const stub = Math.max(6, Math.min(28, (y2 - y1) / 3));
+        d = `M ${x1} ${y1} L ${x1} ${y1 + stub} L ${x2} ${y2 - stub} L ${x2} ${y2}`;
+      } else {
+        const my = (y1 + y2) / 2;
+        d = `M ${x1} ${y1} C ${x1} ${my}, ${x2} ${my}, ${x2} ${y2}`;
+      }
+    } else if(Math.abs(toPos.x - fromPos.x) <= COUPLE_GAP * 1.6){
+      // side-by-side couple: one short straight link
+      d = `M ${fromPos.x} ${fromPos.y} L ${toPos.x} ${toPos.y}`;
+    } else {
+      // same row, further apart: arc over the top, in through the top of each node
+      const ax = fromPos.x, bx = toPos.x;
+      const ay = fromPos.y - (fromPos.r || 0), by = toPos.y - (toPos.r || 0);
+      const top = Math.min(ay, by) - Math.min(150, 50 + Math.abs(bx - ax) * 0.08);
+      if(wireStyle === 'angular') d = `M ${ax} ${ay} L ${ax} ${top} L ${bx} ${top} L ${bx} ${by}`;
+      else d = `M ${ax} ${ay} C ${ax} ${top}, ${bx} ${top}, ${bx} ${by}`;
+    }
+    const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('class', className);
+    if(relation) path.setAttribute('data-relation', relation);
+    path.setAttribute('d', d);
+    linesGroup.appendChild(path);
+    return path;
+  }
+
+  function escapeHtml(s){
+    const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML;
+  }
+
+  // ---------------- Manual drag-to-reposition ----------------
+  // A plain click still opens the detail panel; only a real drag (past a small threshold)
+  // moves the bubble. Once moved, the position is saved and wins over the auto layout for
+  // that person from then on — see "Reset position" in the detail panel to undo that.
+  function attachBubbleDrag(div, personId){
+    let dragState = null;
+    div.addEventListener('pointerdown', (e)=>{
+      if(e.target.closest('.handle')) return; // the "+" handle owns its own drag gesture
+      e.preventDefault();
+      if(e.metaKey || e.ctrlKey){ toggleSelect(personId); return; } // Cmd/Ctrl + click adds/removes from the selection
+      try{ div.setPointerCapture(e.pointerId); }catch(err){}
+      const startPointerLayout = viewportToLayout(e.clientX, e.clientY);
+      dragState = {
+        moved: false,
+        startPointerLayout,
+        startX: parseFloat(div.style.left) || 0,
+        startY: parseFloat(div.style.top) || 0,
+        group: null
+      };
+      // Grabbing one of several selected people drags the whole selection together
+      if(selected.has(personId) && selected.size > 1){
+        dragState.group = Array.from(selected).map(id=>{
+          const el = bubbleLayer.querySelector(`.bubble[data-id="${id}"]`);
+          return el ? { id, el, sx: parseFloat(el.style.left) || 0, sy: parseFloat(el.style.top) || 0 } : null;
+        }).filter(Boolean);
+      }
+    });
+    div.addEventListener('pointermove', (e)=>{
+      if(!dragState) return;
+      const cur = viewportToLayout(e.clientX, e.clientY);
+      const dx = cur.x - dragState.startPointerLayout.x;
+      const dy = cur.y - dragState.startPointerLayout.y;
+      if(!dragState.moved){
+        if(Math.hypot(dx, dy) < 6/scale) return; // small threshold so an ordinary click doesn't register as a drag
+        dragState.moved = true;
+        div.classList.add('bubble-dragging');
+        if(dragState.group) dragState.group.forEach(g => g.el.classList.add('bubble-dragging'));
+      }
+      if(dragState.group){
+        const ov = {};
+        dragState.group.forEach(g=>{
+          g.nx = g.sx + dx; g.ny = g.sy + dy;
+          g.el.style.left = g.nx + 'px'; g.el.style.top = g.ny + 'px';
+          ov[g.id] = { x: g.nx, y: g.ny };
+        });
+        dragState.dx = dx; dragState.dy = dy;
+        redrawLinesMulti(ov);
+        return;
+      }
+      const nx = dragState.startX + dx, ny = dragState.startY + dy;
+      div.style.left = nx + 'px';
+      div.style.top = ny + 'px';
+      dragState.lastX = nx; dragState.lastY = ny;
+      redrawLinesOnly(personId, nx, ny);
+    });
+    div.addEventListener('pointerup', ()=>{
+      if(!dragState) return;
+      if(dragState.moved){
+        div.classList.remove('bubble-dragging');
+        snapshotForUndo();
+        if(dragState.group){
+          dragState.group.forEach(g=>{
+            const person = getPerson(g.id);
+            if(person){ person.manualX = g.nx; person.manualY = g.ny; }
+          });
+          saveState();
+          render(document.getElementById('searchInput').value);
+          dragState = null;
+          return;
+        }
+        if(personId === 'me'){ state.me.manualX = dragState.lastX; state.me.manualY = dragState.lastY; }
+        else { const person = state.people[personId]; if(person){ person.manualX = dragState.lastX; person.manualY = dragState.lastY; } }
+        saveState();
+        render(document.getElementById('searchInput').value);
+      } else {
+        openDetail(personId);
+      }
+      dragState = null;
+    });
+    div.addEventListener('click', (e)=> e.stopPropagation());
+  }
+
+  // ---------------- Drag-to-connect (a funny wobbly rope, physics and all) ----------------
+  let connectDrag = null; // { sourceId, base, twist, knot, grip }
+  let ropeSim = null;     // { pts:[{x,y,ox,oy}], srcPos, cursor:{x,y}, restLen }
+  let ropeRAF = null, ropeLastTs = null, ropeAccumulator = 0;
+  let currentShiftHeld = false;
+  const ROPE_SEGMENTS = 11;
+  const ROPE_STEP = 1/120; // fixed physics timestep, independent of the screen's actual refresh rate
+
+  function viewportToLayout(clientX, clientY){
+    const rect = viewport.getBoundingClientRect();
+    const vx = clientX - rect.left, vy = clientY - rect.top;
+    const cx = rect.width/2, cy = rect.height/2;
+    return { x:(vx - cx - panX) / scale, y:(vy - cy - panY) / scale };
+  }
+
+  function startConnectDrag(sourceId, clientX, clientY, shiftHeld){
+    currentShiftHeld = !!shiftHeld;
+    document.body.classList.add('connect-active');
+    const positions = computeLayout();
+    const srcPos = positions[sourceId] || {x:0,y:0};
+    const cursorPos = viewportToLayout(clientX, clientY);
+
+    const pts = [];
+    for(let i=0;i<=ROPE_SEGMENTS;i++){
+      const t = i/ROPE_SEGMENTS;
+      const x = srcPos.x + (cursorPos.x-srcPos.x)*t;
+      const y = srcPos.y + (cursorPos.y-srcPos.y)*t;
+      pts.push({x,y,ox:x,oy:y});
+    }
+    const d0 = Math.hypot(cursorPos.x-srcPos.x, cursorPos.y-srcPos.y) || 1;
+    ropeSim = { pts, srcPos, cursor:cursorPos, restLen: Math.max(12, (d0*1.18)/ROPE_SEGMENTS) };
+
+    const twist = document.createElementNS('http://www.w3.org/2000/svg','path');
+    twist.setAttribute('class','rope-twist');
+    const base = document.createElementNS('http://www.w3.org/2000/svg','path');
+    base.setAttribute('class','rope-base');
+    const knot = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    knot.setAttribute('class','rope-knot'); knot.setAttribute('r','7');
+    const grip = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    grip.setAttribute('class','rope-knot'); grip.setAttribute('r','6');
+    linesGroup.appendChild(base);
+    linesGroup.appendChild(twist);
+    linesGroup.appendChild(knot);
+    linesGroup.appendChild(grip);
+
+    connectDrag = { sourceId, base, twist, knot, grip };
+    if(ropeRAF) cancelAnimationFrame(ropeRAF);
+    ropeLastTs = null;
+    ropeAccumulator = 0;
+    ropeRAF = requestAnimationFrame(ropeLoop);
+    updateModeBar();
+  }
+
+  function ropeLoop(ts){
+    if(!connectDrag || !ropeSim){ ropeRAF = null; return; }
+    if(ropeLastTs == null) ropeLastTs = ts;
+    let frameTime = (ts - ropeLastTs) / 1000;
+    ropeLastTs = ts;
+    frameTime = Math.min(frameTime, 0.1); // ignore huge gaps (tab switches, etc.)
+    ropeAccumulator += frameTime;
+    let steps = 0;
+    while(ropeAccumulator >= ROPE_STEP && steps < 8){
+      stepRope(ROPE_STEP);
+      ropeAccumulator -= ROPE_STEP;
+      steps++;
+    }
+    drawRope();
+    ropeRAF = requestAnimationFrame(ropeLoop);
+  }
+
+  function stepRope(dt){
+    const g = 2400, damping = 0.982;
+    const pts = ropeSim.pts;
+    for(let i=1;i<pts.length;i++){
+      const p = pts[i];
+      const vx = (p.x-p.ox)*damping, vy = (p.y-p.oy)*damping;
+      p.ox = p.x; p.oy = p.y;
+      p.x += vx;
+      p.y += vy + g*dt*dt;
+    }
+    pts[0].x = ropeSim.srcPos.x; pts[0].y = ropeSim.srcPos.y;
+    pts[0].ox = ropeSim.srcPos.x; pts[0].oy = ropeSim.srcPos.y;
+
+    // tip is on a short springy leash to the cursor, so it lags a touch
+    const last = pts[pts.length-1];
+    const dx0 = ropeSim.cursor.x-last.x, dy0 = ropeSim.cursor.y-last.y;
+    const d0 = Math.sqrt(dx0*dx0+dy0*dy0) || 0.0001;
+    const leash = 5;
+    if(d0 > leash){
+      const diff = (d0-leash)/d0;
+      last.x += dx0*diff*0.55;
+      last.y += dy0*diff*0.55;
+    }
+
+    const restLen = ropeSim.restLen;
+    for(let iter=0; iter<6; iter++){
+      for(let i=0;i<pts.length-1;i++){
+        const a = pts[i], b = pts[i+1];
+        let dx = b.x-a.x, dy = b.y-a.y;
+        let dist = Math.sqrt(dx*dx+dy*dy) || 0.0001;
+        const diff = (dist-restLen)/dist;
+        if(i===0){
+          b.x -= dx*diff; b.y -= dy*diff;
+        } else {
+          const move = diff*0.5;
+          a.x += dx*move; a.y += dy*move;
+          b.x -= dx*move; b.y -= dy*move;
+        }
+      }
+      pts[0].x = ropeSim.srcPos.x; pts[0].y = ropeSim.srcPos.y;
+    }
+  }
+
+  function ropePathD(pts){
+    let d = `M ${pts[0].x} ${pts[0].y} `;
+    for(let i=1;i<pts.length-1;i++){
+      const mx = (pts[i].x+pts[i+1].x)/2, my = (pts[i].y+pts[i+1].y)/2;
+      d += `Q ${pts[i].x} ${pts[i].y} ${mx} ${my} `;
+    }
+    const last = pts[pts.length-1];
+    d += `L ${last.x} ${last.y}`;
+    return d;
+  }
+
+  function drawRope(){
+    if(!connectDrag || !ropeSim) return;
+    const d = ropePathD(ropeSim.pts);
+    connectDrag.base.setAttribute('d', d);
+    connectDrag.twist.setAttribute('d', d);
+    connectDrag.knot.setAttribute('cx', ropeSim.srcPos.x);
+    connectDrag.knot.setAttribute('cy', ropeSim.srcPos.y);
+    const tip = ropeSim.pts[ropeSim.pts.length-1];
+    connectDrag.grip.setAttribute('cx', tip.x);
+    connectDrag.grip.setAttribute('cy', tip.y);
+  }
+
+  function updateConnectDrag(clientX, clientY, shiftHeld){
+    if(!connectDrag || !ropeSim) return;
+    currentShiftHeld = !!shiftHeld;
+    updateModeBar();
+    ropeSim.cursor = viewportToLayout(clientX, clientY);
+    document.querySelectorAll('.bubble.drop-target, .bubble.drop-target-link').forEach(b=>b.classList.remove('drop-target','drop-target-link'));
+    const el = document.elementFromPoint(clientX, clientY);
+    const targetBubble = el && el.closest('.bubble');
+    if(targetBubble && targetBubble.dataset.id !== connectDrag.sourceId){
+      targetBubble.classList.add(shiftHeld ? 'drop-target-link' : 'drop-target');
+    }
+  }
+
+  function endConnectDrag(clientX, clientY, shiftHeld){
+    if(!connectDrag) return;
+    const sourceId = connectDrag.sourceId;
+    if(ropeRAF){ cancelAnimationFrame(ropeRAF); ropeRAF = null; }
+    connectDrag.base.remove(); connectDrag.twist.remove();
+    connectDrag.knot.remove(); connectDrag.grip.remove();
+    document.querySelectorAll('.bubble.drop-target, .bubble.drop-target-link').forEach(b=>b.classList.remove('drop-target','drop-target-link'));
+    connectDrag = null;
+    ropeSim = null;
+    document.body.classList.remove('connect-active');
+    updateModeBar();
+
+    const el = document.elementFromPoint(clientX, clientY);
+    const targetBubble = el && el.closest('.bubble');
+    if(targetBubble && targetBubble.dataset.id && targetBubble.dataset.id !== sourceId){
+      if(shiftHeld){
+        addAlsoConnected(targetBubble.dataset.id, sourceId);
+      } else {
+        reconnectPerson(targetBubble.dataset.id, sourceId);
+      }
+    } else if(!targetBubble){
+      openForm(null);
+      populateConnectedSelect(null);
+      document.getElementById('formConnected').value = sourceId;
+    }
+  }
+
+  function isDescendantOrSelf(ancestorId, nodeId){
+    let cur = nodeId, guard = 0;
+    while(cur && guard++ < 1000){
+      if(cur === ancestorId) return true;
+      if(cur === 'me') break;
+      const p = state.people[cur];
+      cur = p ? p.connectedTo : null;
+    }
+    return false;
+  }
+
+  // Drop any links pointing at people who no longer exist (safety net, not a "redundancy" judgement call)
+  function pruneDanglingLinks(){
+    Object.values(state.people).forEach(p=>{
+      if(Array.isArray(p.links)) p.links = p.links.filter(l => !!getPerson(linkTargetId(l)));
+    });
+  }
+
+  function reconnectPerson(targetId, newParentId){
+    if(targetId === 'me'){ showToast("Can't move Me, you're the centre of it all"); return; }
+    if(isDescendantOrSelf(targetId, newParentId)){ showToast("Can't connect — that'd loop the tree back on itself"); return; }
+    snapshotForUndo();
+    state.people[targetId].connectedTo = newParentId;
+    saveState();
+    render(document.getElementById('searchInput').value);
+    showToast('Reconnected');
+  }
+
+  // "Also connected to" via drag — since Me can't hold extra links, if you drop onto Me
+  // it adds Me to the *other* person's links instead, which is the same relationship either way.
+  // True if these two are already connected in ANY way (primary, or a link either direction) —
+  // checked both ways so you can't accidentally end up with a redundant reciprocal connection
+  // (A linked to B, and separately B linked to A) just by dragging from whichever side.
+  function alreadyConnected(aId, bId){
+    const a = getPerson(aId), b = getPerson(bId);
+    if(a && a.connectedTo === bId) return true;
+    if(b && b.connectedTo === aId) return true;
+    if(a && Array.isArray(a.links) && a.links.some(l => linkTargetId(l) === bId)) return true;
+    if(b && Array.isArray(b.links) && b.links.some(l => linkTargetId(l) === aId)) return true;
+    return false;
+  }
+
+  async function addAlsoConnected(targetId, sourceId){
+    if(targetId === sourceId) return;
+    let ownerId = targetId, otherId = sourceId;
+    if(ownerId === 'me'){ ownerId = sourceId; otherId = 'me'; }
+    const owner = state.people[ownerId];
+    if(!owner){ showToast("Can't link two people who aren't in the tree yet"); return; }
+    if(alreadyConnected(ownerId, otherId)){ showToast('Already connected'); return; }
+    if(!Array.isArray(owner.links)) owner.links = [];
+
+    const otherPerson = getPerson(otherId);
+    const ownerName = ownerId==='me' ? 'Me' : owner.name;
+    const otherName = otherId==='me' ? 'Me' : (otherPerson ? otherPerson.name : 'them');
+    const relation = await showRelationPrompt(`<strong>${escapeHtml(otherName)}</strong> is <strong>${escapeHtml(ownerName)}</strong>'s… <span style="color:var(--muted); font-weight:400;">(pick one, or type something else below)</span>`);
+
+    snapshotForUndo();
+    owner.links.push({ id: otherId, relation: relation || '' });
+    saveState();
+    render(document.getElementById('searchInput').value);
+    showToast('Connected');
+  }
+
+
+  const viewport = document.getElementById('viewport');
+  const canvasInner = document.getElementById('canvas-inner');
+  let scale = 1, panX = 0, panY = 0;
+  let dragging = false, dragStart = null;
+
+  // Zoom keeping the point under (px, py) fixed — px/py are measured from the viewport centre
+  function zoomAt(newScale, px, py){
+    newScale = Math.min(2.6, Math.max(0.35, newScale));
+    const k = newScale / scale;
+    panX = px - (px - panX) * k;
+    panY = py - (py - panY) * k;
+    scale = newScale;
+    applyTransform();
+  }
+  function clientToCentre(clientX, clientY){
+    const r = viewport.getBoundingClientRect();
+    return { x: clientX - r.left - r.width/2, y: clientY - r.top - r.height/2 };
+  }
+
+  function applyTransform(){
+    canvasInner.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+  }
+
+  // ---- Multi-select: hold Cmd (Mac) / Ctrl (Windows) and drag a box over people ----
+  let marquee = null;
+  function applySelectionClasses(){
+    bubbleLayer.querySelectorAll('.bubble').forEach(b => b.classList.toggle('selected', selected.has(b.dataset.id)));
+  }
+  function toggleSelect(id){
+    if(selected.has(id)) selected.delete(id); else selected.add(id);
+    applySelectionClasses(); updateSelBar();
+  }
+  function clearSelection(){
+    if(!selected.size) return;
+    selected.clear(); applySelectionClasses(); updateSelBar();
+  }
+  const selBar = document.createElement('div');
+  selBar.id = 'selBar';
+  selBar.innerHTML = `<span class="count"></span>
+    <button class="btn" data-act="fav">★ Favourite</button>
+    <button class="btn" data-act="unfav">☆ Unfavourite</button>
+    <button class="btn" data-act="clear">Clear</button>`;
+  document.body.appendChild(selBar);
+  function updateSelBar(){
+    selBar.classList.toggle('show', selected.size > 0);
+    selBar.querySelector('.count').textContent = `${selected.size} selected`;
+  }
+  function batchFavourite(val){
+    if(!selected.size) return;
+    snapshotForUndo();
+    selected.forEach(id=>{ const p = getPerson(id); if(p) p.fav = val; });
+    saveState();
+    render(document.getElementById('searchInput').value);
+    showToast(`${val ? 'Favourited' : 'Unfavourited'} ${selected.size} ${selected.size === 1 ? 'person' : 'people'}`);
+  }
+  selBar.addEventListener('mousedown', e => e.stopPropagation());
+  selBar.addEventListener('click', (e)=>{
+    const act = e.target.dataset && e.target.dataset.act;
+    if(act === 'fav') batchFavourite(true);
+    else if(act === 'unfav') batchFavourite(false);
+    else if(act === 'clear') clearSelection();
+  });
+  function marqueeRect(e){
+    const x1 = Math.min(marquee.x0, e.clientX), x2 = Math.max(marquee.x0, e.clientX);
+    const y1 = Math.min(marquee.y0, e.clientY), y2 = Math.max(marquee.y0, e.clientY);
+    return { x1, y1, x2, y2 };
+  }
+  function updateMarquee(e){
+    const r = marqueeRect(e), vr = viewport.getBoundingClientRect();
+    marquee.el.style.left = (r.x1 - vr.left) + 'px'; marquee.el.style.top = (r.y1 - vr.top) + 'px';
+    marquee.el.style.width = (r.x2 - r.x1) + 'px'; marquee.el.style.height = (r.y2 - r.y1) + 'px';
+    selected.clear(); marquee.base.forEach(id => selected.add(id));
+    bubbleLayer.querySelectorAll('.bubble').forEach(b=>{
+      const ph = b.querySelector('.photo'); if(!ph) return;
+      const br = ph.getBoundingClientRect();
+      if(br.right >= r.x1 && br.left <= r.x2 && br.bottom >= r.y1 && br.top <= r.y2) selected.add(b.dataset.id);
+    });
+    applySelectionClasses(); updateSelBar();
+  }
+
+  viewport.addEventListener('mousedown', (e)=>{
+    if(e.target.closest('.bubble') || e.target.closest('button') || e.target.closest('.zoom-controls')) return;
+    if(e.metaKey || e.ctrlKey){
+      e.preventDefault();
+      const el = document.createElement('div'); el.className = 'marquee'; viewport.appendChild(el);
+      marquee = { x0:e.clientX, y0:e.clientY, el, base: e.shiftKey ? new Set(selected) : new Set() };
+      updateMarquee(e);
+      return;
+    }
+    dragging = true; viewport.classList.add('dragging');
+    dragStart = { x:e.clientX, y:e.clientY, panX, panY };
+  });
+  window.addEventListener('mousemove', (e)=>{
+    if(marquee){ updateMarquee(e); return; }
+    if(!dragging) return;
+    panX = dragStart.panX + (e.clientX - dragStart.x);
+    panY = dragStart.panY + (e.clientY - dragStart.y);
+    applyTransform();
+  });
+  window.addEventListener('mouseup', (e)=>{
+    if(marquee){ marquee.el.remove(); marquee = null; return; }
+    // a plain click on empty background (no real pan) clears the selection
+    if(dragging && dragStart && Math.hypot(e.clientX - dragStart.x, e.clientY - dragStart.y) < 4) clearSelection();
+    dragging=false; viewport.classList.remove('dragging');
+  });
+
+  viewport.addEventListener('wheel', (e)=>{
+    e.preventDefault();
+    const delta = Math.max(-60, Math.min(60, e.deltaY)); // clamp big trackpad jumps
+    const factor = Math.exp(-delta * 0.0016);
+    const c = clientToCentre(e.clientX, e.clientY);
+    zoomAt(scale * factor, c.x, c.y);
+    if(document.body.classList.contains('show-handles')) scheduleProximityUpdate();
+  }, { passive:false });
+
+  // touch
+  let touchStart = null, pinchStart = null;
+  viewport.addEventListener('touchstart', (e)=>{
+    if(e.target.closest('.bubble')) return;
+    if(e.touches.length === 1){
+      touchStart = { x:e.touches[0].clientX, y:e.touches[0].clientY, panX, panY };
+    } else if(e.touches.length === 2){
+      pinchStart = { dist: touchDist(e.touches), scale };
+      touchStart = null;
+    }
+  }, { passive:true });
+  viewport.addEventListener('touchmove', (e)=>{
+    if(e.touches.length === 1 && touchStart){
+      panX = touchStart.panX + (e.touches[0].clientX - touchStart.x);
+      panY = touchStart.panY + (e.touches[0].clientY - touchStart.y);
+      applyTransform();
+    } else if(e.touches.length === 2 && pinchStart){
+      const d = touchDist(e.touches);
+      const c = clientToCentre((e.touches[0].clientX + e.touches[1].clientX)/2, (e.touches[0].clientY + e.touches[1].clientY)/2);
+      zoomAt(pinchStart.scale * (d / pinchStart.dist), c.x, c.y);
+    }
+  }, { passive:true });
+  viewport.addEventListener('touchend', ()=>{ touchStart=null; pinchStart=null; });
+  function touchDist(touches){
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt(dx*dx+dy*dy);
+  }
+
+  document.getElementById('zoomIn').onclick = ()=>{ zoomAt(scale*1.12, 0, 0); };
+  document.getElementById('zoomOut').onclick = ()=>{ zoomAt(scale/1.12, 0, 0); };
+  document.getElementById('zoomReset').onclick = ()=>{ scale=1; panX=0; panY=0; applyTransform(); };
+  document.getElementById('undoBtn').onclick = ()=> undo();
+
+  // ---------------- Frame: "h" centres on Me, "f" fits the whole tree in view ----------------
+  function frameMe(){
+    scale = 1;
+    panX = 0;
+    panY = 0;
+    applyTransform();
+  }
+
+  function frameAll(){
+    const positions = computeLayout();
+    const ids = Object.keys(positions);
+    if(ids.length <= 1){ frameMe(); return; }
+    let minX=Infinity, maxX=-Infinity, minY=Infinity, maxY=-Infinity;
+    ids.forEach(id=>{
+      const p = positions[id];
+      minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+      minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+    });
+    const pad = 130; // room for bubble size + name labels at the edges
+    const spanW = Math.max((maxX - minX) + pad*2, 1);
+    const spanH = Math.max((maxY - minY) + pad*2, 1);
+    const rect = viewport.getBoundingClientRect();
+    const fitScale = Math.min(rect.width / spanW, rect.height / spanH);
+    scale = Math.min(2.6, Math.max(0.35, fitScale));
+    const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+    panX = -cx * scale;
+    panY = -cy * scale;
+    applyTransform();
+  }
+
+  document.addEventListener('keydown', (e)=>{
+    if(e.ctrlKey || e.metaKey || e.altKey) return;
+    const tag = (document.activeElement && document.activeElement.tagName) || '';
+    if(tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    if(e.key === 'Escape' && selected.size){ clearSelection(); return; }
+    const key = e.key.toLowerCase();
+    if(key === 's' && e.shiftKey){
+      e.preventDefault();
+      wireStyle = wireStyle === 'curved' ? 'angular' : 'curved';
+      try{ localStorage.setItem('famtree-wire-style', wireStyle); }catch(err){}
+      redrawLinesOnly();
+      showToast(wireStyle === 'curved' ? 'Wires: curved (Shift+S to switch)' : 'Wires: straight (Shift+S to switch)');
+    }
+    else if(key === 'h'){ e.preventDefault(); frameMe(); }
+    else if(key === 'f'){ e.preventDefault(); frameAll(); }
+  });
+
+  // ---------------- Panels ----------------
+  const overlay = document.getElementById('overlay');
+  const panels = ['detailPanel','formPanel','bdayPanel','exportPanel','fixItPanel'].map(id=>document.getElementById(id));
+
+  function closeAllPanels(){
+    if(document.getElementById('formPanel').classList.contains('open')){
+      flushAutosave();
+    }
+    panels.forEach(p=>p.classList.remove('open'));
+    overlay.classList.remove('open');
+  }
+  overlay.addEventListener('click', closeAllPanels);
+  document.getElementById('closeDetail').onclick = closeAllPanels;
+  document.getElementById('closeForm').onclick = closeAllPanels;
+  document.getElementById('closeBday').onclick = closeAllPanels;
+  document.getElementById('closeExport').onclick = closeAllPanels;
+  document.getElementById('closeFixIt').onclick = closeAllPanels;
+
+  function openPanel(el){
+    closeAllPanels();
+    overlay.classList.add('open');
+    el.classList.add('open');
+  }
+
+  // ---------------- Detail panel ----------------
+  let currentDetailId = null;
+  function openDetail(id){
+    currentDetailId = id;
+    const p = getPerson(id);
+    if(!p) return;
+    document.getElementById('dTag').textContent = id==='me' ? 'This is you' : (p.relation || 'Family');
+    document.getElementById('dName').textContent = p.name + (p.nickname ? ` “${p.nickname}”` : '');
+    document.getElementById('dPhoto').innerHTML = p.photo ? `<img src="${p.photo}" alt="">` : `<span class="initials">${initials(p.name)}</span>`;
+    const age = computeAge(p);
+    document.getElementById('dAge').textContent = age===null ? '' : (()=>{
+      const tag = ageIsApprox(p) ? '~' : '';
+      return p.death ? `Lived to ${tag}${age} years old` : `${tag}${age} years old`;
+    })();
+    const dateBits = [];
+    if(p.birth) dateBits.push('Born ' + fmtDate(p.birth) + (p.birthplace ? ' in ' + p.birthplace : ''));
+    if(p.death) dateBits.push('Died ' + fmtDate(p.death) + (p.deathplace ? ' in ' + p.deathplace : ''));
+    if(p.marriageDate) dateBits.push('Married ' + fmtDate(p.marriageDate));
+    if(p.divorceDate) dateBits.push('Divorced ' + fmtDate(p.divorceDate));
+    document.getElementById('dDates').textContent = dateBits.join(' · ');
+    const linksEl = document.getElementById('dLinks');
+    if(Array.isArray(p.links) && p.links.length){
+      const bits = p.links.map(link=>{
+        const lid = linkTargetId(link);
+        const rel = linkRelation(link);
+        const lp = getPerson(lid);
+        if(!lp) return null;
+        const name = lp.id==='me' ? 'Me' : lp.name;
+        return rel ? `${name} (${rel})` : name;
+      }).filter(Boolean);
+      linksEl.textContent = bits.length ? 'Also connected to: ' + bits.join(', ') : '';
+      linksEl.style.display = bits.length ? 'block' : 'none';
+    } else {
+      linksEl.textContent = '';
+      linksEl.style.display = 'none';
+    }
+    document.getElementById('dDesc').textContent = p.desc || '';
+    document.getElementById('dFav').textContent = p.fav ? '★ Favourited' : '☆ Favourite';
+    document.getElementById('dDelete').style.display = id==='me' ? 'none' : 'inline-flex';
+    document.getElementById('dResetPos').style.display = (typeof p.manualX === 'number') ? 'inline-flex' : 'none';
+    openPanel(document.getElementById('detailPanel'));
+  }
+
+  document.getElementById('dResetPos').onclick = ()=>{
+    const p = getPerson(currentDetailId);
+    if(!p) return;
+    snapshotForUndo();
+    delete p.manualX; delete p.manualY;
+    saveState();
+    render(document.getElementById('searchInput').value);
+    openDetail(currentDetailId);
+    showToast('Back to automatic position');
+  };
+
+  document.getElementById('dFav').onclick = ()=>{
+    const p = getPerson(currentDetailId);
+    snapshotForUndo();
+    p.fav = !p.fav;
+    saveState(); render(document.getElementById('searchInput').value);
+    openDetail(currentDetailId);
+  };
+  // ---------------- Custom confirm dialog ----------------
+  let confirmResolve = null;
+  function showConfirm(message){
+    return new Promise(resolve=>{
+      document.getElementById('confirmMessage').textContent = message;
+      document.getElementById('confirmOverlay').classList.add('open');
+      confirmResolve = resolve;
+    });
+  }
+  document.getElementById('confirmCancel').onclick = ()=>{
+    document.getElementById('confirmOverlay').classList.remove('open');
+    if(confirmResolve) confirmResolve(false);
+    confirmResolve = null;
+  };
+  document.getElementById('confirmOk').onclick = ()=>{
+    document.getElementById('confirmOverlay').classList.remove('open');
+    if(confirmResolve) confirmResolve(true);
+    confirmResolve = null;
+  };
+
+  // Same pattern as showConfirm, but collects a short text answer (used to ask for a relation
+  // label right after a Shift-drag "also connect", rather than leaving it blank).
+  let relationPromptResolve = null;
+  function showRelationPrompt(messageHtml){
+    return new Promise(resolve=>{
+      document.getElementById('relationPromptMessage').innerHTML = messageHtml;
+      const input = document.getElementById('relationPromptInput');
+      input.value = '';
+      document.getElementById('relationPromptOverlay').classList.add('open');
+      relationPromptResolve = resolve;
+      setTimeout(()=> input.focus(), 50);
+    });
+  }
+  function closeRelationPrompt(value){
+    document.getElementById('relationPromptOverlay').classList.remove('open');
+    if(relationPromptResolve) relationPromptResolve(value);
+    relationPromptResolve = null;
+  }
+  document.getElementById('relationPromptSkip').onclick = ()=> closeRelationPrompt(null);
+  document.getElementById('relationPromptSave').onclick = ()=>{
+    closeRelationPrompt(document.getElementById('relationPromptInput').value.trim());
+  };
+  document.getElementById('relationPromptInput').addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter'){ e.preventDefault(); closeRelationPrompt(document.getElementById('relationPromptInput').value.trim()); }
+  });
+  document.querySelectorAll('#quickRelationRow button').forEach(btn=>{
+    btn.addEventListener('click', ()=> closeRelationPrompt(btn.dataset.relation));
+  });
+
+  document.getElementById('dEdit').onclick = ()=>{
+    openForm(currentDetailId);
+  };
+  document.getElementById('dDelete').onclick = async ()=>{
+    const ok = await showConfirm('Remove this person from your tree? Anyone connected to them will be reconnected to whoever they were connected to.');
+    if(!ok) return;
+    const p = state.people[currentDetailId];
+    if(!p) return;
+    snapshotForUndo();
+    const fallback = p.connectedTo || 'me';
+    Object.values(state.people).forEach(child=>{
+      if(child.connectedTo === currentDetailId) child.connectedTo = fallback;
+      if(child.parent2 === currentDetailId) child.parent2 = '';
+      if(Array.isArray(child.links)) child.links = child.links.filter(l => linkTargetId(l) !== currentDetailId);
+    });
+    delete state.people[currentDetailId];
+    saveState();
+    closeAllPanels();
+    render(document.getElementById('searchInput').value);
+    showToast('Removed from your tree');
+  };
+
+  // ---------------- Add / Edit form ----------------
+  let editingId = null;
+  let pendingPhoto = '';
+
+  function populateConnectedSelect(excludeId){
+    const sel = document.getElementById('formConnected');
+    sel.innerHTML = '';
+    const optMe = document.createElement('option');
+    optMe.value = 'me'; optMe.textContent = 'Me';
+    sel.appendChild(optMe);
+    Object.values(state.people).forEach(p=>{
+      if(p.id === excludeId) return;
+      const o = document.createElement('option');
+      o.value = p.id; o.textContent = p.name;
+      sel.appendChild(o);
+    });
+  }
+
+  let formLinksTemp = [];
+
+  // Links are stored one-directionally (on whoever "owns" them), but a connection should be
+  // visible regardless of which person's menu you open. This finds the other side: anyone
+  // ELSE who has linked TO this person (e.g. via a Shift-drag from their bubble).
+  function findIncomingLinksFor(personId){
+    const results = [];
+    Object.values(state.people).forEach(other=>{
+      if(other.id === personId || !Array.isArray(other.links)) return;
+      other.links.forEach(l=>{
+        if(linkTargetId(l) === personId) results.push({ ownerId: other.id, relation: linkRelation(l) });
+      });
+    });
+    return results;
+  }
+
+  function populateLinkPicker(excludeId){
+    const sel = document.getElementById('formLinkPicker');
+    sel.innerHTML = '';
+    const connectedVal = document.getElementById('formConnected').value;
+    const alreadyAdded = formLinksTemp.map(linkTargetId);
+    const incomingIds = findIncomingLinksFor(excludeId).map(x => x.ownerId);
+
+    const candidates = [{id:'me', name:'Me'}, ...Object.values(state.people).map(p=>({id:p.id, name:p.name}))]
+      .filter(c => c.id !== excludeId && c.id !== connectedVal && !alreadyAdded.includes(c.id) && !incomingIds.includes(c.id));
+
+    if(candidates.length === 0){
+      const o = document.createElement('option'); o.value=''; o.textContent='(no one else to add)'; sel.appendChild(o);
+      return;
+    }
+
+    // Sort: likely spouse/partner of the primary connection first, then by closeness in the family graph
+    // to that primary connection (so nearby relatives surface before distant or unrelated people).
+    const spouseSet = findSpousesOf(connectedVal);
+    const refId = connectedVal || excludeId || 'me';
+    const distances = bfsDistancesFrom(refId);
+
+    candidates.sort((a, b)=>{
+      const aSpouse = spouseSet.has(a.id) ? 0 : 1;
+      const bSpouse = spouseSet.has(b.id) ? 0 : 1;
+      if(aSpouse !== bSpouse) return aSpouse - bSpouse;
+      const da = distances[a.id] !== undefined ? distances[a.id] : 999;
+      const db = distances[b.id] !== undefined ? distances[b.id] : 999;
+      if(da !== db) return da - db;
+      return a.name.localeCompare(b.name);
+    });
+
+    candidates.forEach(c=>{
+      const o = document.createElement('option');
+      o.value = c.id;
+      o.textContent = c.name + (spouseSet.has(c.id) ? ' 💍' : '');
+      sel.appendChild(o);
+    });
+  }
+
+  function renderLinkChips(excludeId){
+    const wrap = document.getElementById('formLinksChips');
+    const incoming = excludeId ? findIncomingLinksFor(excludeId) : [];
+
+    const outgoingHtml = formLinksTemp.map(link=>{
+      const id = linkTargetId(link);
+      const rel = linkRelation(link);
+      const p = getPerson(id);
+      const label = p ? (id==='me' ? 'Me' : p.name) : 'Unknown';
+      return `<span class="chip">${escapeHtml(label)}${rel ? ` <span class="rel">· ${escapeHtml(rel)}</span>` : ''} <button type="button" class="chip-x" data-id="${id}">×</button></span>`;
+    }).join('');
+
+    const incomingHtml = incoming.map(({ownerId, relation})=>{
+      const p = getPerson(ownerId);
+      const label = p ? (ownerId==='me' ? 'Me' : p.name) : 'Unknown';
+      return `<span class="chip chip-incoming" title="Added from ${escapeHtml(label)}'s own profile">↩ ${escapeHtml(label)}${relation ? ` <span class="rel">· ${escapeHtml(relation)}</span>` : ''} <button type="button" class="chip-x-incoming" data-owner="${ownerId}">×</button></span>`;
+    }).join('');
+
+    if(!outgoingHtml && !incomingHtml){
+      wrap.innerHTML = `<span class="subtle">No extra connections yet</span>`;
+      return;
+    }
+    wrap.innerHTML = outgoingHtml + incomingHtml;
+
+    wrap.querySelectorAll('.chip-x').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        formLinksTemp = formLinksTemp.filter(l => linkTargetId(l) !== btn.dataset.id);
+        renderLinkChips(excludeId);
+        populateLinkPicker(excludeId);
+        scheduleAutosave();
+      });
+    });
+    wrap.querySelectorAll('.chip-x-incoming').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const owner = state.people[btn.dataset.owner];
+        if(!owner || !Array.isArray(owner.links)) return;
+        snapshotForUndo();
+        owner.links = owner.links.filter(l => linkTargetId(l) !== excludeId);
+        saveState();
+        renderLinkChips(excludeId);
+        populateLinkPicker(excludeId);
+        render(document.getElementById('searchInput').value);
+      });
+    });
+  }
+
+  document.getElementById('formLinkAdd').onclick = ()=>{
+    const val = document.getElementById('formLinkPicker').value;
+    if(!val) return;
+    if(editingId && alreadyConnected(editingId, val)){ showToast('Already connected'); return; }
+    const relationInput = document.getElementById('formLinkRelation');
+    const rel = relationInput.value.trim();
+    if(!formLinksTemp.some(l => linkTargetId(l) === val)){
+      formLinksTemp.push({ id: val, relation: rel });
+    }
+    relationInput.value = '';
+    renderLinkChips(editingId);
+    populateLinkPicker(editingId);
+    scheduleAutosave();
+  };
+
+  document.getElementById('formConnected').addEventListener('change', ()=>{
+    const val = document.getElementById('formConnected').value;
+    formLinksTemp = formLinksTemp.filter(l => linkTargetId(l) !== val); // avoid duplicating the primary link
+    renderLinkChips(editingId);
+    populateLinkPicker(editingId);
+  });
+
+  function populateRelationSuggestions(){
+    const dl = document.getElementById('relationSuggestions');
+    dl.innerHTML = RELATIONS.map(r=>`<option value="${r}">`).join('');
+  }
+
+  const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const PARTIAL_DATE_PREFIXES = ['formBirth', 'formDeath', 'formMarriage', 'formDivorce'];
+
+  function populateMonthSelects(){
+    PARTIAL_DATE_PREFIXES.forEach(prefix=>{
+      const sel = document.getElementById(prefix + 'Month');
+      if(!sel || sel.options.length > 1) return; // already populated
+      MONTH_NAMES.forEach((name, i)=>{
+        const o = document.createElement('option');
+        o.value = String(i+1).padStart(2,'0');
+        o.textContent = name;
+        sel.appendChild(o);
+      });
+    });
+  }
+
+  function buildPartialDateString(prefix){
+    const year = document.getElementById(prefix + 'Year').value.trim();
+    const month = document.getElementById(prefix + 'Month').value;
+    const day = document.getElementById(prefix + 'Day').value.trim();
+    if(!year) return '';
+    const y = year.padStart(4, '0');
+    if(!month) return y;
+    if(!day) return `${y}-${month}`;
+    return `${y}-${month}-${day.padStart(2,'0')}`;
+  }
+
+  function setPartialDateFields(prefix, str){
+    const p = parsePartialDate(str);
+    document.getElementById(prefix + 'Year').value = p ? p.year : '';
+    document.getElementById(prefix + 'Month').value = p && p.month ? String(p.month).padStart(2,'0') : '';
+    document.getElementById(prefix + 'Day').value = p && p.day ? p.day : '';
+    document.getElementById(prefix + 'Day').disabled = !(p && p.month);
+  }
+
+  function wirePartialDateGuards(prefix){
+    const yearEl = document.getElementById(prefix + 'Year');
+    const monthEl = document.getElementById(prefix + 'Month');
+    const dayEl = document.getElementById(prefix + 'Day');
+    monthEl.addEventListener('change', ()=>{
+      dayEl.disabled = !monthEl.value;
+      if(!monthEl.value) dayEl.value = '';
+    });
+    yearEl.addEventListener('input', ()=>{
+      if(!yearEl.value.trim()){
+        monthEl.value = '';
+        dayEl.value = '';
+        dayEl.disabled = true;
+      }
+    });
+  }
+
+  populateMonthSelects();
+  PARTIAL_DATE_PREFIXES.forEach(wirePartialDateGuards);
+
+  function refreshDateHints(){
+    [
+      ['formBirthGroup', 'formBirth', 'formBirthHint'],
+      ['formDeathGroup', 'formDeath', 'formDeathHint'],
+      ['formMarriageGroup', 'formMarriage', 'formMarriageHint'],
+      ['formDivorceGroup', 'formDivorce', 'formDivorceHint']
+    ].forEach(([groupId, prefix, hintId])=>{
+      const group = document.getElementById(groupId);
+      const hint = document.getElementById(hintId);
+      if(!group || !hint) return;
+      const value = buildPartialDateString(prefix);
+      if(value){
+        hint.textContent = '';
+        group.classList.remove('date-empty');
+      } else {
+        hint.textContent = '· not set';
+        group.classList.add('date-empty');
+      }
+    });
+  }
+
+  function updateLinkRelationLabel(){
+    const isMe = editingId === 'me';
+    const name = isMe ? 'Me' : (document.getElementById('formName').value.trim() || 'this person');
+    document.getElementById('formLinkRelationName').textContent = name;
+  }
+
+  function openForm(id){
+    editingId = id || null;
+    pendingPhoto = '';
+    autosaveSnapshotTaken = false;
+    populateRelationSuggestions();
+    const isMe = id === 'me';
+    document.getElementById('fieldConnected').style.display = isMe ? 'none' : 'block';
+    document.getElementById('fieldRelation').style.display = isMe ? 'none' : 'block';
+    document.getElementById('fieldLinks').style.display = isMe ? 'none' : 'block';
+    updateLinkRelationLabel();
+
+    if(id){
+      const p = getPerson(id);
+      document.getElementById('formTitle').textContent = isMe ? 'Edit your details' : ('Edit ' + p.name);
+      document.getElementById('formName').value = p.name === 'Me' ? '' : p.name;
+      document.getElementById('formNickname').value = p.nickname || '';
+      setPartialDateFields('formBirth', p.birth || '');
+      setPartialDateFields('formDeath', p.death || '');
+      document.getElementById('formBirthplace').value = p.birthplace || '';
+      document.getElementById('formDeathplace').value = p.deathplace || '';
+      setPartialDateFields('formMarriage', p.marriageDate || '');
+      setPartialDateFields('formDivorce', p.divorceDate || '');
+      document.getElementById('formDesc').value = p.desc || '';
+      document.getElementById('formFav').checked = !!p.fav;
+      pendingPhoto = p.photo || '';
+      updatePhotoPreview();
+      if(!isMe){
+        populateConnectedSelect(id);
+        document.getElementById('formConnected').value = p.connectedTo || 'me';
+        document.getElementById('formRelation').value = p.relation || '';
+        formLinksTemp = (Array.isArray(p.links) ? p.links : (p.parent2 ? [{id:p.parent2, relation:''}] : []))
+          .map(l => (typeof l === 'string') ? {id:l, relation:''} : {id:l.id, relation:l.relation||''});
+        populateLinkPicker(id);
+        renderLinkChips(id);
+      }
+      document.getElementById('fieldLinks').open = formLinksTemp.length > 0;
+      document.getElementById('fieldMoreDates').open = !!(p.birthplace || p.deathplace || p.marriageDate || p.divorceDate);
+    } else {
+      document.getElementById('formTitle').textContent = 'Add a family member';
+      document.getElementById('formName').value = '';
+      document.getElementById('formNickname').value = '';
+      setPartialDateFields('formBirth', '');
+      setPartialDateFields('formDeath', '');
+      document.getElementById('formBirthplace').value = '';
+      document.getElementById('formDeathplace').value = '';
+      setPartialDateFields('formMarriage', '');
+      setPartialDateFields('formDivorce', '');
+      document.getElementById('formDesc').value = '';
+      document.getElementById('formFav').checked = false;
+      populateConnectedSelect(null);
+      document.getElementById('formRelation').value = '';
+      formLinksTemp = [];
+      populateLinkPicker(null);
+      renderLinkChips(null);
+      document.getElementById('fieldLinks').open = false;
+      document.getElementById('fieldMoreDates').open = false;
+      updatePhotoPreview();
+    }
+    refreshDateHints();
+    openPanel(document.getElementById('formPanel'));
+  }
+
+  document.getElementById('btnAdd').onclick = ()=> openForm(null);
+
+  function updatePhotoPreview(){
+    const el = document.getElementById('formPhotoPreview');
+    el.innerHTML = pendingPhoto ? `<img src="${pendingPhoto}" alt="">` : `<span style="color:var(--muted); font-size:10px;">No photo</span>`;
+  }
+
+  document.getElementById('formPhotoBtn').onclick = ()=> document.getElementById('formPhotoInput').click();
+  document.getElementById('formPhotoInput').onchange = (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev)=> openCropper(ev.target.result);
+    reader.readAsDataURL(file);
+    e.target.value = ''; // allow re-choosing the same file later
+  };
+
+  // ---------------- Photo cropper ----------------
+  const CROP_SIZE = 260;
+  const cropOverlay = document.getElementById('cropOverlay');
+  const cropFrame = document.getElementById('cropFrame');
+  const cropImg = document.getElementById('cropImg');
+  const cropZoomSlider = document.getElementById('cropZoomSlider');
+  let cropState = null; // { natW, natH, baseScale, zoom, offX, offY }
+
+  function openCropper(dataUrl){
+    const img = new Image();
+    img.onload = ()=>{
+      const baseScale = Math.max(CROP_SIZE / img.width, CROP_SIZE / img.height);
+      cropState = { natW: img.width, natH: img.height, baseScale, zoom: 1, offX: 0, offY: 0 };
+      cropImg.src = dataUrl;
+      cropZoomSlider.value = 1;
+      centerCrop();
+      applyCropTransform();
+      cropOverlay.classList.add('open');
+    };
+    img.src = dataUrl;
+  }
+
+  function centerCrop(){
+    const disp = cropState.baseScale * cropState.zoom;
+    const w = cropState.natW * disp, h = cropState.natH * disp;
+    cropState.offX = (CROP_SIZE - w) / 2;
+    cropState.offY = (CROP_SIZE - h) / 2;
+  }
+
+  function clampCropOffsets(){
+    const disp = cropState.baseScale * cropState.zoom;
+    const w = cropState.natW * disp, h = cropState.natH * disp;
+    cropState.offX = Math.min(0, Math.max(CROP_SIZE - w, cropState.offX));
+    cropState.offY = Math.min(0, Math.max(CROP_SIZE - h, cropState.offY));
+  }
+
+  function applyCropTransform(){
+    const disp = cropState.baseScale * cropState.zoom;
+    cropImg.style.width = (cropState.natW * disp) + 'px';
+    cropImg.style.height = (cropState.natH * disp) + 'px';
+    cropImg.style.transform = `translate(${cropState.offX}px, ${cropState.offY}px)`;
+  }
+
+  function setCropZoom(newZoom){
+    const oldDisp = cropState.baseScale * cropState.zoom;
+    const cx = CROP_SIZE/2 - cropState.offX, cy = CROP_SIZE/2 - cropState.offY; // focal point in image px * oldDisp
+    cropState.zoom = Math.min(8, Math.max(1, newZoom));
+    const newDisp = cropState.baseScale * cropState.zoom;
+    const ratio = newDisp / oldDisp;
+    cropState.offX = CROP_SIZE/2 - cx * ratio;
+    cropState.offY = CROP_SIZE/2 - cy * ratio;
+    clampCropOffsets();
+    applyCropTransform();
+    cropZoomSlider.value = cropState.zoom;
+  }
+
+  cropZoomSlider.addEventListener('input', ()=> setCropZoom(parseFloat(cropZoomSlider.value)));
+  cropFrame.addEventListener('wheel', (e)=>{
+    e.preventDefault();
+    setCropZoom(cropState.zoom * (e.deltaY < 0 ? 1.06 : 0.94));
+  }, { passive:false });
+
+  let cropDrag = null;
+  cropFrame.addEventListener('mousedown', (e)=>{
+    cropDrag = { x:e.clientX, y:e.clientY, offX:cropState.offX, offY:cropState.offY };
+    cropFrame.classList.add('dragging');
+  });
+  window.addEventListener('mousemove', (e)=>{
+    if(!cropDrag) return;
+    cropState.offX = cropDrag.offX + (e.clientX - cropDrag.x);
+    cropState.offY = cropDrag.offY + (e.clientY - cropDrag.y);
+    clampCropOffsets();
+    applyCropTransform();
+  });
+  window.addEventListener('mouseup', ()=>{ cropDrag=null; cropFrame.classList.remove('dragging'); });
+
+  let cropTouch = null, cropPinch = null;
+  cropFrame.addEventListener('touchstart', (e)=>{
+    if(e.touches.length === 1){
+      cropTouch = { x:e.touches[0].clientX, y:e.touches[0].clientY, offX:cropState.offX, offY:cropState.offY };
+    } else if(e.touches.length === 2){
+      cropPinch = { dist: touchDist(e.touches), zoom: cropState.zoom };
+    }
+  }, { passive:true });
+  cropFrame.addEventListener('touchmove', (e)=>{
+    e.preventDefault();
+    if(e.touches.length === 1 && cropTouch){
+      cropState.offX = cropTouch.offX + (e.touches[0].clientX - cropTouch.x);
+      cropState.offY = cropTouch.offY + (e.touches[0].clientY - cropTouch.y);
+      clampCropOffsets();
+      applyCropTransform();
+    } else if(e.touches.length === 2 && cropPinch){
+      setCropZoom(cropPinch.zoom * (touchDist(e.touches) / cropPinch.dist));
+    }
+  }, { passive:false });
+  cropFrame.addEventListener('touchend', ()=>{ cropTouch=null; cropPinch=null; });
+
+  document.getElementById('cropCancel').onclick = ()=>{
+    cropOverlay.classList.remove('open');
+    cropState = null;
+  };
+
+  document.getElementById('cropConfirm').onclick = ()=>{
+    const disp = cropState.baseScale * cropState.zoom;
+    const sx = -cropState.offX / disp;
+    const sy = -cropState.offY / disp;
+    const sSize = CROP_SIZE / disp;
+    const OUT = 300;
+    const canvas = document.createElement('canvas');
+    canvas.width = OUT; canvas.height = OUT;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(cropImg, sx, sy, sSize, sSize, 0, 0, OUT, OUT);
+    pendingPhoto = canvas.toDataURL('image/webp', 1.0);
+    updatePhotoPreview();
+    cropOverlay.classList.remove('open');
+    cropState = null;
+    scheduleAutosave();
+  };
+
+  // ---------------- Autosave — every change is written as you make it, no Save button needed ----------------
+  let autosaveTimer = null;
+  let autosaveSnapshotTaken = false;
+
+  function applyFormFieldsToState(){
+    const isMe = editingId === 'me';
+    const name = document.getElementById('formName').value.trim();
+    if(!isMe && !name) return; // nothing worth keeping yet — don't create a nameless person
+
+    if(!autosaveSnapshotTaken){ snapshotForUndo(); autosaveSnapshotTaken = true; }
+
+    const nickname = document.getElementById('formNickname').value.trim();
+    const birth = buildPartialDateString('formBirth');
+    const death = buildPartialDateString('formDeath');
+    const birthplace = document.getElementById('formBirthplace').value.trim();
+    const deathplace = document.getElementById('formDeathplace').value.trim();
+    const marriageDate = buildPartialDateString('formMarriage');
+    const divorceDate = buildPartialDateString('formDivorce');
+    const desc = document.getElementById('formDesc').value.trim();
+    const fav = document.getElementById('formFav').checked;
+    const connectedTo = isMe ? '' : document.getElementById('formConnected').value;
+    const links = isMe ? [] : formLinksTemp.filter(l => linkTargetId(l) !== connectedTo);
+
+    if(isMe){
+      state.me.name = name || 'Me';
+      state.me.nickname = nickname;
+      state.me.birth = birth; state.me.death = death; state.me.desc = desc;
+      state.me.birthplace = birthplace; state.me.deathplace = deathplace;
+      state.me.marriageDate = marriageDate; state.me.divorceDate = divorceDate;
+      state.me.fav = fav; state.me.photo = pendingPhoto;
+    } else {
+      if(!editingId){
+        // first moment this draft has a name — create the real record now, everything after autosaves onto it
+        editingId = uid();
+        state.people[editingId] = { id: editingId };
+      }
+      const p = state.people[editingId];
+      p.name = name; p.nickname = nickname; p.birth = birth; p.death = death; p.desc = desc; p.fav = fav; p.photo = pendingPhoto;
+      p.birthplace = birthplace; p.deathplace = deathplace;
+      p.marriageDate = marriageDate; p.divorceDate = divorceDate;
+      p.connectedTo = connectedTo;
+      p.relation = document.getElementById('formRelation').value.trim();
+      p.links = links;
+      delete p.parent2;
+    }
+  }
+
+  function flushAutosave(){
+    clearTimeout(autosaveTimer);
+    applyFormFieldsToState();
+    pruneDanglingLinks();
+    saveState();
+    render(document.getElementById('searchInput').value);
+  }
+
+  function scheduleAutosave(){
+    applyFormFieldsToState();
+    clearTimeout(autosaveTimer);
+    autosaveTimer = setTimeout(()=>{
+      pruneDanglingLinks();
+      saveState();
+      render(document.getElementById('searchInput').value);
+    }, 450);
+  }
+
+  document.getElementById('formPanel').addEventListener('input', ()=>{ scheduleAutosave(); refreshDateHints(); updateLinkRelationLabel(); });
+  document.getElementById('formPanel').addEventListener('change', ()=>{ scheduleAutosave(); refreshDateHints(); updateLinkRelationLabel(); });
+
+  document.getElementById('formSave').onclick = ()=>{
+    const isMe = editingId === 'me';
+    if(!isMe && !editingId && !document.getElementById('formName').value.trim()){
+      showToast('Give them a name first, or there\'s nothing to keep');
+      return;
+    }
+    flushAutosave();
+    closeAllPanels();
+    showToast('Saved');
+  };
+
+  // click "Me" bubble edit shortcut via detail panel edit button already covers it
+
+  // ---------------- Search ----------------
+  document.getElementById('searchInput').addEventListener('input', (e)=>{
+    render(e.target.value);
+  });
+
+  // ---------------- Birthdays panel ----------------
+  document.getElementById('btnBirthdays').onclick = ()=>{
+    const withBirth = allPeople().filter(p=>p.birth);
+    const list = withBirth
+      .map(p=>({ p, nb: nextBirthday(p.birth) }))
+      .filter(x=>x.nb)
+      .sort((a,b)=>{
+        if(!!a.p.fav !== !!b.p.fav) return a.p.fav ? -1 : 1;
+        return a.nb.days - b.nb.days;
+      });
+    const partialCount = withBirth.length - list.length;
+    const el = document.getElementById('bdayList');
+    if(list.length === 0){
+      el.innerHTML = `<p class="subtle">No birthdays on record yet — add some dates of birth to see them here.</p>`;
+    } else {
+      el.innerHTML = list.map(({p,nb})=>{
+        const whenLabel = nb.days === 0 ? 'Today!' : nb.days === 1 ? 'Tomorrow' : `in ${nb.days} days`;
+        return `<div class="bday-item" data-id="${p.id}" title="Show on the chart">
+          <div class="photo">${p.photo ? `<img src="${p.photo}">` : `<span style="font-family:var(--serif); font-size:13px; color:var(--muted);">${initials(p.name)}</span>`}</div>
+          <div class="info">
+            <div class="n">${p.fav ? '★ ' : ''}${escapeHtml(p.id==='me'?'Me':p.name)}</div>
+            <div class="d">Turning ${nb.turning} · ${nb.date.toLocaleDateString('en-AU',{day:'numeric',month:'long'})}</div>
+          </div>
+          <div class="when">${whenLabel}</div>
+        </div>`;
+      }).join('');
+    }
+    if(partialCount > 0){
+      el.innerHTML += `<p class="subtle" style="margin-top:12px;">${partialCount} more ${partialCount===1?'person has':'people have'} a birth year (or year & month) on record, but not a full date — not enough to count down to, so ${partialCount===1?'they\'re':'they\'re'} left off this list.</p>`;
+    }
+    el.querySelectorAll('.bday-item').forEach(row=>{
+      row.addEventListener('click', ()=> locatePerson(row.dataset.id));
+    });
+    openPanel(document.getElementById('bdayPanel'));
+  };
+
+  // Close panels, glide the chart so this person is centred, and pulse their bubble so it's easy to spot.
+  function locatePerson(id){
+    const positions = lastPositions || computeLayout();
+    const pos = positions[id];
+    if(!pos){ showToast("Couldn't find them on the chart"); return; }
+    closeAllPanels();
+    const search = document.getElementById('searchInput');
+    if(search && search.value){ search.value = ''; render(''); }
+    scale = Math.min(2.6, Math.max(scale, 1));
+    panX = -pos.x * scale;
+    panY = -pos.y * scale;
+    canvasInner.style.transition = 'transform .55s cubic-bezier(.22,.8,.3,1)';
+    applyTransform();
+    setTimeout(()=>{ canvasInner.style.transition = ''; }, 650);
+    const bubble = bubbleLayer.querySelector(`.bubble[data-id="${id}"]`);
+    if(bubble){
+      bubble.classList.add('locate-pulse');
+      setTimeout(()=> bubble.classList.remove('locate-pulse'), 3200);
+    }
+  }
+
+  // ---------------- Export ----------------
+  document.getElementById('btnExport').onclick = ()=> openPanel(document.getElementById('exportPanel'));
+
+  function downloadBlob(blob, filename){
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url), 4000);
+  }
+
+  function buildMarkdown(){
+    let md = `# Family Tree\n\nExported ${new Date().toLocaleDateString('en-AU')}\n\n`;
+    function section(p, indent){
+      const age = computeAge(p);
+      md += `${'#'.repeat(Math.min(indent+2,6))} ${p.id==='me'?'Me':p.name}${p.nickname ? ' “'+p.nickname+'”' : ''}${p.relation ? ' — ' + p.relation : ''}\n\n`;
+      if(p.birth) md += `- Born: ${fmtDate(p.birth)}${p.birthplace ? ' in ' + p.birthplace : ''}\n`;
+      if(p.death) md += `- Died: ${fmtDate(p.death)}${p.deathplace ? ' in ' + p.deathplace : ''}\n`;
+      if(age !== null) md += `- Age: ${ageIsApprox(p) ? '~' : ''}${age}${p.death ? ' (at death)' : ''}\n`;
+      if(p.marriageDate) md += `- Married: ${fmtDate(p.marriageDate)}\n`;
+      if(p.divorceDate) md += `- Divorced: ${fmtDate(p.divorceDate)}\n`;
+      if(Array.isArray(p.links) && p.links.length){
+        const bits = p.links.map(link=>{
+          const id = linkTargetId(link);
+          const rel = linkRelation(link);
+          const lp = getPerson(id);
+          if(!lp) return null;
+          const name = lp.id==='me' ? 'Me' : lp.name;
+          return rel ? `${name} (${rel})` : name;
+        }).filter(Boolean);
+        if(bits.length) md += `- Also connected to: ${bits.join(', ')}\n`;
+      }
+      if(p.fav) md += `- Favourite ★\n`;
+      if(p.desc) md += `\n${p.desc}\n`;
+      md += `\n`;
+    }
+    section(state.me, 0);
+    const childrenMap = buildChildrenMap();
+    function walk(id, depth){
+      (childrenMap[id]||[]).forEach(cid=>{
+        section(state.people[cid], depth);
+        walk(cid, depth+1);
+      });
+    }
+    walk('me', 1);
+    return md;
+  }
+
+  document.getElementById('expJson').onclick = ()=>{
+    downloadBlob(new Blob([JSON.stringify(state, null, 2)], {type:'application/json'}), 'da-fam-family-tree.json');
+    showToast('Downloaded JSON');
+  };
+  document.getElementById('expMd').onclick = ()=>{
+    downloadBlob(new Blob([buildMarkdown()], {type:'text/markdown'}), 'da-fam-family-tree.md');
+    showToast('Downloaded Markdown');
+  };
+
+  // A clean copy of the live app itself, for the ZIP export — so the archive has literally
+  // everything needed to reconstruct and re-open the chart, not just the raw data.
+  // Cloning the DOM (rather than fetching this file's own URL) works everywhere: file://, a real
+  // server, or inside Claude's preview, none of which are guaranteed to allow self-fetch.
+  function buildStandaloneAppHTML(){
+    const docClone = document.documentElement.cloneNode(true);
+    // reset any transient UI state (an open panel, an expanded details section) so the
+    // reconstructed copy opens fresh and clean rather than mid-interaction
+    docClone.querySelectorAll('.panel.open, .overlay.open, .crop-overlay.open, .confirm-overlay.open').forEach(el=>{
+      el.classList.remove('open');
+    });
+    docClone.querySelectorAll('details[open]').forEach(el=> el.removeAttribute('open'));
+    const modeBar = docClone.querySelector('#modeBar');
+    if(modeBar){ modeBar.removeAttribute('class'); modeBar.textContent = ''; modeBar.style.display = 'none'; }
+    return '<!DOCTYPE html>\n' + docClone.outerHTML;
+  }
+
+  // ---------------- Anonymised export (JSON + screenshots) ----------------
+  // A consistent id→label mapping shared by both anonymised exports, so "Person 3" means
+  // the same person whether you're looking at the JSON or the screenshot.
+  function buildAnonMap(){
+    const idMap = { me: 'me' };
+    let counter = 1;
+    Object.keys(state.people).forEach(id=>{ idMap[id] = 'p' + (counter++); });
+    return {
+      anonId: id => idMap[id] || id,
+      anonName: id => id === 'me' ? 'Me' : ('Person ' + idMap[id].slice(1))
+    };
+  }
+
+  function buildAnonymizedState(){
+    const { anonId, anonName } = buildAnonMap();
+    const anonPeople = {};
+    Object.values(state.people).forEach(p=>{
+      const newId = anonId(p.id);
+      const obj = {
+        id: newId,
+        name: anonName(p.id),
+        connectedTo: anonId(p.connectedTo || 'me'),
+        relation: p.relation || '',
+        links: Array.isArray(p.links) ? p.links.map(l => ({ id: anonId(linkTargetId(l)), relation: linkRelation(l) })) : []
+      };
+      if(typeof p.manualX === 'number'){ obj.manualX = p.manualX; obj.manualY = p.manualY; }
+      anonPeople[newId] = obj;
+    });
+    return { me: { id:'me', name:'Me' }, people: anonPeople };
+  }
+
+  // Hand-drawn Canvas render of the whole tree (not a DOM screenshot library — those render
+  // SVG curves and markers unreliably). Draws every union dot, line and bubble itself from the
+  // same position/relationship data the live app uses, so it matches exactly.
+  async function renderTreeToImage(anonymize){
+    const positions = computeLayout();
+    const { childUnion, dots } = computeUnionGroups();
+    Object.keys(dots).forEach(key=>{
+      const [a,b] = dots[key].parentIds;
+      const pa = positions[a], pb = positions[b];
+      if(pa && pb){ dots[key].x = (pa.x+pb.x)/2; dots[key].y = (pa.y+pb.y)/2 + ROW_HEIGHT*0.5; }
+    });
+
+    const ids = Object.keys(positions);
+    let minX=Infinity, maxX=-Infinity, minY=Infinity, maxY=-Infinity;
+    ids.forEach(id=>{
+      const p = positions[id];
+      minX = Math.min(minX,p.x); maxX = Math.max(maxX,p.x);
+      minY = Math.min(minY,p.y); maxY = Math.max(maxY,p.y);
+    });
+    Object.values(dots).forEach(d=>{
+      if(d.x === undefined) return;
+      minX = Math.min(minX,d.x); maxX = Math.max(maxX,d.x);
+      minY = Math.min(minY,d.y); maxY = Math.max(maxY,d.y);
+    });
+    const PAD = 110;
+    minX -= PAD; maxX += PAD; minY -= PAD; maxY += PAD;
+    const w = Math.max(maxX-minX, 200), h = Math.max(maxY-minY, 200);
+
+    const DPR = 2;
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.ceil(w*DPR);
+    canvas.height = Math.ceil(h*DPR);
+    const ctx = canvas.getContext('2d');
+    ctx.scale(DPR, DPR);
+    ctx.translate(-minX, -minY);
+
+    const cs = getComputedStyle(document.body);
+    const read = (name, fallback) => (cs.getPropertyValue(name) || '').trim() || fallback;
+    const bg = read('--bg', '#101715');
+    const lineColor = read('--line', '#3E5148');
+    const sage = read('--sage', '#6C8B76');
+    const gold = read('--gold', '#D4A24C');
+    const panel = read('--panel', '#1C2622');
+    const parchment = read('--parchment', '#EFE8D8');
+    const muted = read('--muted', '#93A69B');
+
+    ctx.fillStyle = bg;
+    ctx.fillRect(minX, minY, w, h);
+
+    function drawCurve(from, to, color, width, dashed){
+      const midx = (from.x+to.x)/2 + (to.y-from.y)*0.12;
+      const midy = (from.y+to.y)/2 - (to.x-from.x)*0.12;
+      ctx.save();
+      if(dashed) ctx.setLineDash([5,4]);
+      ctx.beginPath();
+      ctx.moveTo(from.x, from.y);
+      ctx.quadraticCurveTo(midx, midy, to.x, to.y);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    const drawnDots = new Set();
+    Object.keys(childUnion).forEach(childId=>{
+      const union = childUnion[childId];
+      const dot = dots[union.dotKey];
+      const childPos = positions[childId];
+      if(!dot || dot.x === undefined || !childPos) return;
+      if(!drawnDots.has(union.dotKey)){
+        drawnDots.add(union.dotKey);
+        if(positions[union.parentIds[0]]) drawCurve(positions[union.parentIds[0]], dot, lineColor, 2);
+        if(positions[union.parentIds[1]]) drawCurve(positions[union.parentIds[1]], dot, lineColor, 2);
+        ctx.beginPath(); ctx.arc(dot.x, dot.y, 4.5, 0, Math.PI*2); ctx.fillStyle = gold; ctx.fill();
+      }
+      drawCurve(dot, childPos, lineColor, 2);
+    });
+    allPeople().forEach(p=>{
+      if(p.id === 'me') return;
+      const connTo = p.connectedTo || 'me';
+      if(edgeCoveredByUnion(childUnion, p.id, connTo)) return;
+      const pos = positions[p.id], connPos = positions[connTo];
+      if(pos && connPos) drawCurve(connPos, pos, lineColor, 2);
+    });
+    allPeople().forEach(p=>{
+      if(!Array.isArray(p.links)) return;
+      p.links.forEach(link=>{
+        const linkId = linkTargetId(link);
+        const pos = positions[p.id], lp = positions[linkId];
+        if(!pos || !lp) return;
+        if(edgeCoveredByUnion(childUnion, p.id, linkId)) return;
+        if(isSpouseRelation(linkRelation(link))){
+          const pairKey = [p.id, linkId].sort().join('|');
+          if(dots[pairKey]) return;
+        }
+        drawCurve(lp, pos, lineColor, 2, true);
+      });
+    });
+
+    const peopleList = allPeople();
+    const imageCache = {};
+    if(!anonymize){
+      await Promise.all(peopleList.filter(p=>p.photo).map(p=> new Promise(resolve=>{
+        const img = new Image();
+        img.onload = ()=>{ imageCache[p.id] = img; resolve(); };
+        img.onerror = ()=> resolve();
+        img.src = p.photo;
+      })));
+    }
+
+    const { anonName } = anonymize ? buildAnonMap() : { anonName: null };
+
+    peopleList.forEach(p=>{
+      const pos = positions[p.id];
+      if(!pos) return;
+      const isMe = p.id === 'me';
+      const r = isMe ? 48 : 37;
+
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, r, 0, Math.PI*2);
+      ctx.fillStyle = panel;
+      ctx.fill();
+      ctx.lineWidth = isMe ? 3 : 2.5;
+      ctx.strokeStyle = isMe ? gold : sage;
+      ctx.stroke();
+
+      if(!anonymize && imageCache[p.id]){
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, r-1.5, 0, Math.PI*2);
+        ctx.clip();
+        const img = imageCache[p.id];
+        const s = Math.max((r*2)/img.width, (r*2)/img.height);
+        const iw = img.width*s, ih = img.height*s;
+        ctx.drawImage(img, pos.x-iw/2, pos.y-ih/2, iw, ih);
+        ctx.restore();
+      } else {
+        ctx.fillStyle = muted;
+        ctx.font = `600 ${isMe?20:16}px Georgia, serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        const label = anonymize ? '•' : initials(p.name);
+        ctx.fillText(label, pos.x, pos.y);
+      }
+
+      const displayName = anonymize ? anonName(p.id) : (isMe ? 'Me' : p.name);
+      ctx.fillStyle = isMe ? gold : parchment;
+      ctx.font = `600 13px Georgia, serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText(displayName, pos.x, pos.y + r + 8);
+    });
+
+    return new Promise(resolve => canvas.toBlob(blob => resolve(blob), 'image/png'));
+  }
+
+  document.getElementById('expJsonAnon').onclick = ()=>{
+    downloadBlob(new Blob([JSON.stringify(buildAnonymizedState(), null, 2)], {type:'application/json'}), 'da-fam-family-tree-anonymised.json');
+    showToast('Downloaded anonymised JSON');
+  };
+  document.getElementById('expScreenshot').onclick = async ()=>{
+    showToast('Rendering screenshot…');
+    try{
+      const blob = await renderTreeToImage(false);
+      downloadBlob(blob, 'da-fam-family-tree.png');
+      showToast('Downloaded screenshot');
+    }catch(e){ showToast("Couldn't render the screenshot"); }
+  };
+  document.getElementById('expScreenshotAnon').onclick = async ()=>{
+    showToast('Rendering anonymised screenshot…');
+    try{
+      const blob = await renderTreeToImage(true);
+      downloadBlob(blob, 'da-fam-family-tree-anonymised.png');
+      showToast('Downloaded anonymised screenshot');
+    }catch(e){ showToast("Couldn't render the screenshot"); }
+  };
+
+  // ---------------- Fix it: auto-marry safe pairs, flag the rest ----------------
+  // Safe to automate: anyone with EXACTLY two identified direct parents who aren't yet tagged
+  // as spouses of each other — since they're both independently confirmed as this person's
+  // parent, they must be a couple, whatever they're actually called. Defaults to "Partner"
+  // since the app has no way to know Husband vs Wife.
+  function autoFixUnions(){
+    const seen = new Set();
+    const pairs = [];
+    allPeople().forEach(p=>{
+      const parents = findDirectParentsOf(p.id);
+      if(parents.length !== 2) return;
+      const [a,b] = parents;
+      if(findSpousesOf(a).has(b)) return;
+      const key = [a,b].sort().join('|');
+      if(seen.has(key)) return;
+      seen.add(key);
+      pairs.push([a,b]);
+    });
+    if(pairs.length === 0) return [];
+    snapshotForUndo();
+    const fixed = [];
+    pairs.forEach(([a,b])=>{
+      let ownerId = a, otherId = b;
+      if(ownerId === 'me'){ ownerId = b; otherId = a; }
+      const owner = state.people[ownerId];
+      if(!owner) return;
+      if(!Array.isArray(owner.links)) owner.links = [];
+      if(alreadyConnected(ownerId, otherId)) return;
+      owner.links.push({ id: otherId, relation: 'Partner' });
+      fixed.push([ownerId, otherId]);
+    });
+    saveState();
+    render(document.getElementById('searchInput').value);
+    return fixed;
+  }
+
+  // Siblings who are only linked to each other (e.g. "Sister"), where one has parents on the tree and
+  // the other isn't linked to any parent at all. Full siblings share parents, so the parentless one
+  // is linked to the same parents. Half/step siblings are skipped (they only share one parent).
+  function autoFixSiblings(){
+    const SIB = /sister|brother|sibling/i, PARTIAL = /half|step/i;
+    const edges = [];
+    allPeople().forEach(p=>{
+      if(p.connectedTo && getPerson(p.connectedTo) && SIB.test(p.relation||'') && !PARTIAL.test(p.relation||'')) edges.push([p.id, p.connectedTo]);
+      (p.links||[]).forEach(l=>{
+        const r = linkRelation(l), t = linkTargetId(l);
+        if(getPerson(t) && SIB.test(r||'') && !PARTIAL.test(r||'')) edges.push([p.id, t]);
+      });
+    });
+    if(!edges.length) return [];
+    function parentLabel(childId, parentId){
+      const c = getPerson(childId), par = getPerson(parentId);
+      if(par && par.connectedTo === childId){ const d = relationGenDelta(par.relation); if(d !== null && d < 0) return par.relation; }
+      if(c && Array.isArray(c.links)){
+        const l = c.links.find(x => linkTargetId(x) === parentId && (relationGenDelta(linkRelation(x)) || 0) < 0);
+        if(l) return linkRelation(l);
+      }
+      return 'Parent';
+    }
+    const fixes = [];
+    let snap = false;
+    for(let pass = 0; pass < 10; pass++){
+      let changed = false;
+      edges.forEach(([a, b])=>{
+        [[a, b], [b, a]].forEach(([needy, donor])=>{
+          if(findDirectParentsOf(needy).length) return;
+          const donorParents = findDirectParentsOf(donor).filter(pid => pid !== needy && getPerson(pid));
+          if(!donorParents.length) return;
+          if(!snap){ snapshotForUndo(); snap = true; }
+          donorParents.forEach(pid=>{
+            const label = parentLabel(donor, pid);
+            if(needy === 'me'){
+              const par = state.people[pid]; if(!par) return;
+              (par.links = par.links || []).push({ id:'me', relation:'Child' });
+            } else {
+              const n = state.people[needy]; if(!n) return;
+              (n.links = n.links || []).push({ id:pid, relation:label });
+            }
+          });
+          fixes.push({ child: needy, parents: donorParents });
+          changed = true;
+        });
+      });
+      if(!changed) break;
+    }
+    if(fixes.length){ saveState(); render(document.getElementById('searchInput').value); }
+    return fixes;
+  }
+
+  // NOT safe to automate — the app has no way to guess whether a blank relation means
+  // Father, Sister, Aunt, or something else. These just get surfaced for a quick manual fix.
+  function findUnclearRelations(){
+    const issues = [];
+    allPeople().forEach(p=>{
+      if(p.id === 'me') return;
+      if(p.connectedTo && relationGenDelta(p.relation) === null){
+        issues.push({ id: p.id, detail: `connection to ${nameOf(p.connectedTo)}` });
+      }
+      if(Array.isArray(p.links)){
+        p.links.forEach(l=>{
+          if(relationGenDelta(linkRelation(l)) === null){
+            issues.push({ id: p.id, detail: `extra link to ${nameOf(linkTargetId(l))}` });
+          }
+        });
+      }
+    });
+    return issues;
+  }
+  function nameOf(id){
+    const p = getPerson(id);
+    return p ? (id==='me' ? 'Me' : p.name) : 'someone no longer in the tree';
+  }
+
+  document.getElementById('btnFixIt').onclick = ()=>{
+    const sibFixed = autoFixSiblings();
+    const fixed = autoFixUnions();
+    const unclear = findUnclearRelations();
+
+    const el = document.getElementById('fixItResults');
+    let html = '';
+    if(sibFixed.length){
+      html += `<p style="color:var(--gold); font-weight:600; margin-bottom:6px;">✅ Linked ${sibFixed.length} ${sibFixed.length===1?'person':'people'} to their parents</p>`;
+      html += '<p class="subtle" style="margin-bottom:6px;">These were only connected as siblings, so they\'ve been linked as a child of the same parents as their sibling.</p>';
+      html += '<ul style="margin:0 0 18px; padding-left:18px; font-size:13px; color:var(--muted);">';
+      sibFixed.forEach(f=> html += `<li>${escapeHtml(nameOf(f.child))} → ${f.parents.map(pid=>escapeHtml(nameOf(pid))).join(' + ')}</li>`);
+      html += '</ul>';
+    }
+    if(fixed.length){
+      html += `<p style="color:var(--gold); font-weight:600; margin-bottom:6px;">✅ Married ${fixed.length} ${fixed.length===1?'couple':'couples'} automatically</p>`;
+      html += '<ul style="margin:0 0 18px; padding-left:18px; font-size:13px; color:var(--muted);">';
+      fixed.forEach(([a,b])=> html += `<li>${escapeHtml(nameOf(a))} + ${escapeHtml(nameOf(b))}</li>`);
+      html += '</ul>';
+    } else {
+      html += `<p class="subtle" style="margin-bottom:18px;">No pairs found that could be safely auto-married — nothing to fix here, or everything's already tagged.</p>`;
+    }
+    if(unclear.length){
+      html += `<p style="color:var(--danger); font-weight:600; margin-bottom:6px;">⚠ ${unclear.length} relationship${unclear.length===1?'':'s'} still ${unclear.length===1?'needs':'need'} a label</p>`;
+      html += '<p class="subtle" style="margin-bottom:10px;">These are blank or not recognised, so their position and any couple-matching can\'t be worked out. Tap one to jump straight to editing it.</p>';
+      html += '<div style="display:flex; flex-direction:column; gap:6px;">';
+      unclear.forEach(u=>{
+        html += `<button class="btn fixit-jump" data-id="${u.id}" style="justify-content:flex-start; text-align:left;">${escapeHtml(nameOf(u.id))} — ${escapeHtml(u.detail)}</button>`;
+      });
+      html += '</div>';
+    } else {
+      html += `<p class="subtle">Every relationship in the tree has a recognised label. 🎉</p>`;
+    }
+    el.innerHTML = html;
+    el.querySelectorAll('.fixit-jump').forEach(btn=>{
+      btn.addEventListener('click', ()=> openForm(btn.dataset.id));
+    });
+    openPanel(document.getElementById('fixItPanel'));
+  };
+
+  // ---------------- Auto layout: snap everyone back to the algorithm ----------------
+  document.getElementById('btnAutoLayout').onclick = async ()=>{
+    const manualCount = allPeople().filter(p => typeof p.manualX === 'number').length;
+    if(manualCount === 0){
+      showToast('Nothing to reset — no one\'s been manually moved');
+      return;
+    }
+    const ok = await showConfirm(`This snaps ${manualCount} manually-dragged ${manualCount===1?'bubble':'bubbles'} back to the automatic layout — couples together, a union dot, siblings arranged underneath. You can still drag anyone individually afterward.`);
+    if(!ok) return;
+    snapshotForUndo();
+    allPeople().forEach(p=>{ delete p.manualX; delete p.manualY; });
+    saveState();
+    render(document.getElementById('searchInput').value);
+    frameAll();
+    showToast('Auto layout applied');
+  };
+
+  document.getElementById('expZip').onclick = async ()=>{
+    showToast('Building your ZIP…');
+    try{
+      await ensureJSZip();
+      const zip = new JSZip();
+      zip.file('da-fam-family-tree.json', JSON.stringify(state, null, 2));
+      zip.file('da-fam-family-tree.md', buildMarkdown());
+      zip.file('da-fam-family-tree-app.html', buildStandaloneAppHTML());
+      const photos = zip.folder('photos');
+      allPeople().forEach(p=>{
+        if(p.photo && p.photo.startsWith('data:image')){
+          const mimeMatch = p.photo.match(/^data:image\/(\w+);base64,/);
+          const ext = mimeMatch ? mimeMatch[1].replace('jpeg','jpg') : 'webp';
+          const base64 = p.photo.split(',')[1];
+          const safeName = (p.id==='me'?'me':p.name).replace(/[^a-z0-9]+/gi,'-').toLowerCase();
+          photos.file(`${safeName}-${p.id}.${ext}`, base64, { base64:true });
+        }
+      });
+      const blob = await zip.generateAsync({ type:'blob' });
+      downloadBlob(blob, 'da-fam-family-tree.zip');
+      showToast('Downloaded ZIP');
+    }catch(e){
+      showToast("Couldn't build the ZIP — try JSON or Markdown instead");
+    }
+  };
+
+  let jszipPromise = null;
+  function ensureJSZip(){
+    if(window.JSZip) return Promise.resolve();
+    if(jszipPromise) return jszipPromise;
+    jszipPromise = new Promise((resolve, reject)=>{
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+      s.onload = resolve; s.onerror = reject;
+      document.head.appendChild(s);
+    });
+    return jszipPromise;
+  }
+
+  // ---------------- Import ----------------
+  function readFileAsText(file){
+    return new Promise((resolve, reject)=>{
+      const reader = new FileReader();
+      reader.onload = ()=> resolve(reader.result);
+      reader.onerror = ()=> reject(reader.error);
+      reader.readAsText(file);
+    });
+  }
+
+  function looksLikeValidExport(data){
+    return data && typeof data === 'object' && (data.me || data.people);
+  }
+
+  async function applyImportedState(data){
+    if(!data.me) data.me = defaultState().me;
+    if(!data.people) data.people = {};
+    // same migration as loadState(), in case this is an older export
+    Object.values(data.people).forEach(p=>{
+      if(!Array.isArray(p.links)){
+        p.links = p.parent2 ? [{id:p.parent2, relation:''}] : [];
+      } else {
+        p.links = p.links.map(l => (typeof l === 'string') ? {id:l, relation:''} : l);
+      }
+      delete p.parent2;
+    });
+    snapshotForUndo();
+    state = data;
+    pruneDanglingLinks();
+    saveState();
+    closeAllPanels();
+    render('');
+    showToast('Imported — Ctrl/Cmd+Z if that wasn\'t what you meant to do');
+  }
+
+  document.getElementById('btnImport').onclick = ()=> document.getElementById('importInput').click();
+
+  document.getElementById('importInput').onchange = async (e)=>{
+    const file = e.target.files[0];
+    e.target.value = ''; // allow re-selecting the same file later
+    if(!file) return;
+
+    try{
+      let data = null;
+      const isZip = file.name.toLowerCase().endsWith('.zip') || file.type === 'application/zip';
+
+      if(isZip){
+        await ensureJSZip();
+        const zip = await JSZip.loadAsync(file);
+        const jsonEntryName = Object.keys(zip.files).find(name => name.toLowerCase().endsWith('.json'));
+        if(!jsonEntryName){ showToast("Couldn't find a tree file inside that ZIP"); return; }
+        const text = await zip.file(jsonEntryName).async('string');
+        data = JSON.parse(text);
+      } else {
+        const text = await readFileAsText(file);
+        data = JSON.parse(text);
+      }
+
+      if(!looksLikeValidExport(data)){
+        showToast("That doesn't look like a Da Fam' export");
+        return;
+      }
+
+      const ok = await showConfirm("Import this file? It'll replace everything currently loaded here — export a backup first if you're not sure.");
+      if(!ok) return;
+      await applyImportedState(data);
+    }catch(err){
+      showToast("Couldn't read that file — is it a Da Fam' JSON or ZIP export?");
+    }
+  };
+
+  document.getElementById('btnReset').onclick = async ()=>{
+    const ok = await showConfirm('This clears every person and photo you have added. Are you sure? Consider exporting a backup first.');
+    if(!ok) return;
+    snapshotForUndo();
+    state = defaultState();
+    saveState();
+    closeAllPanels();
+    render('');
+    showToast('Cleared');
+  };
+
+  // "Me" bubble opens its own edit-friendly detail
+  // (handled generically by openDetail/click listener already)
+
+  // Stop the browser's native "drag this image out" gesture everywhere — clicking and dragging on a
+  // bubble should behave exactly like dragging anywhere else (pan the canvas), not pick up a photo ghost.
+  document.addEventListener('dragstart', (e)=> e.preventDefault());
+
+  // ---------------- Init ----------------
+  async function init(){
+    document.getElementById('viewport').style.opacity = 0;
+    populateRelationSuggestions();
+    await loadState();
+    render('');
+    applyTransform();
+    document.getElementById('viewport').style.transition = 'opacity .3s ease';
+    document.getElementById('viewport').style.opacity = 1;
+  }
+  init();
+
+})();
+</script>
+</body>
+</html>
