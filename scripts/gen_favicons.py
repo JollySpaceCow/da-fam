@@ -9,7 +9,8 @@ Run once; commit the outputs; delete this script if desired.
 
 import os, struct, subprocess, zlib, shutil
 
-OUT   = os.path.dirname(os.path.abspath(__file__))
+ROOT  = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+OUT   = os.path.join(ROOT, "assets")
 FONT  = "/tmp/fraunces-600.ttf"   # downloaded by agent
 MAGICK = shutil.which("magick") or shutil.which("convert")
 
@@ -147,14 +148,14 @@ manifest = """\
   "name": "Da Fam'",
   "short_name": "Da Fam'",
   "description": "Your private family tree — everything stays on your device.",
-  "start_url": "/",
+  "start_url": "../",
   "display": "standalone",
   "background_color": "#101715",
   "theme_color": "#101715",
   "icons": [
-    { "src": "/favicon-32x32.png",    "sizes": "32x32",   "type": "image/png" },
-    { "src": "/favicon-48x48.png",    "sizes": "48x48",   "type": "image/png" },
-    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
+    { "src": "favicon-32x32.png",    "sizes": "32x32",   "type": "image/png" },
+    { "src": "favicon-48x48.png",    "sizes": "48x48",   "type": "image/png" },
+    { "src": "apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
   ]
 }
 """
@@ -168,14 +169,14 @@ sitemap = """\
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://jollspacecow.github.io/da-fam/</loc>
+    <loc>https://jollyspacecow.github.io/da-fam/</loc>
     <lastmod>2026-11-14</lastmod>
     <changefreq>monthly</changefreq>
     <priority>1.0</priority>
   </url>
 </urlset>
 """
-with open(os.path.join(OUT, "sitemap.xml"), "w") as f:
+with open(os.path.join(ROOT, "sitemap.xml"), "w") as f:
     f.write(sitemap)
 print("sitemap.xml ✓")
 
